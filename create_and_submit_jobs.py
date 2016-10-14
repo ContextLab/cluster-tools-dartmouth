@@ -1,5 +1,5 @@
 #create a bunch of job scripts
-import config
+from config import config
 import os
 import socket
 from subprocess import call
@@ -16,42 +16,44 @@ assert(len(job_commands) == len(job_names))
 
 
 def create_job(name, job_command, config):
-    def create_helper(s, config):
-        x = [i for i, char in enumerate(s) if char == '[']
-        y = [i for i, char in enumerate(s) if char == ']']
+    def create_helper(s, job_command, config):
+        x = [i for i, char in enumerate(s) if char == '<']
+        y = [i for i, char in enumerate(s) if char == '>']
         if len(x) == 0: return s
 
         q = ''
         index = 0
         for i in range(len(x)):
-            q += s[index:x[i]-2]
-            unpacked = eval(s[x[i]:y[i]-1])
-            q += unpacked
+            q += s[index:x[i]]
+            unpacked = eval(s[x[i]+1:y[i]])
+            q += str(unpacked)
             index = y[i]
         return q
 
     #create script directory if it doesn't already exist
     try:
-        os.stat(config.scriptdir)
+        os.stat(config['scriptdir'])
     except:
-        os.mkdir(config.scriptdir)
+        os.makedirs(config['scriptdir'])
 
-    template_fd = open(config.template, 'r')
-    job_fname = os.path.join(config.scriptdir, name)
+    template_fd = open(config['template'], 'r')
+    job_fname = os.path.join(config['scriptdir'], name)
     new_fd = open(job_fname, 'w+')
 
     while True:
         next = template_fd.readline()
-        if next is None: break
-        new_fd.writelines(create_helper(next, config))
+        if len(next) == 0: break
+        new_fd.writelines(create_helper(next, job_command, config))
     template_fd.close()
     new_fd.close()
     return job_fname
 
 
 for n,c in zip(job_names, job_commands):
+    #TODO: don't create the job if it already exists
     next_job = create_job(n, c, config)
 
+    #TODO: clean this up
     if (socket.gethostname() == 'discovery') or (socket.gethostname() == 'ndoli'):
         submit_command = 'echo "[SUBMITTING JOB]"; qsub'
     else:

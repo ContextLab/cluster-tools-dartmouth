@@ -1,31 +1,31 @@
 #!/bin/bash -l
 
-#note: Portable Batch System (PBS) lines begin with "#PBS".  to-be-replaced text is sandwiched between square brackets
+#note: Portable Batch System (PBS) lines begin with "#PBS".  to-be-replaced text is sandwiched between angled brackets
 
 # declare a name for this job
-#PBS -N [config.jobname]
+#PBS -N <config['jobname']>
 
 # specify the queue the job will be added to (if more than 600, use largeq)
-#PBS -q [config.q]
+#PBS -q <config['q']>
 
 # specify the number of cores and nodes (estimate 4GB of RAM per core)
-#PBS -l nodes=[config.nnodes]:ppn=[config.ppn]
+#PBS -l nodes=<config['nnodes']>:ppn=<config['ppn']>
 
 # specify how long the job should run (wall time)
-#PBS -l walltime=[config.walltime]
+#PBS -l walltime=<config['walltime']>
 
 # set the working directory *of this script* to the directory from which the job was submitted
 cd $PBS_O_WORKDIR
 
 # load the specified modules
-declare -a modules=[config.modules]
+declare -a modules=<config['modules']>
 for m in "{modules[@]}"
 do
     module add $m
 done
 
 # set the working directory *of the job* to the specified start directory
-cd [config.startdir]
+cd <config['startdir']>
 
 # run the job
-[config.cmd_wrapper] [job_command] #note: job_commandd is reserved for the job command; it should not be specified in config.py
+<config['cmd_wrapper']> <job_command> #note: job_command is reserved for the job command; it should not be specified in config.py
