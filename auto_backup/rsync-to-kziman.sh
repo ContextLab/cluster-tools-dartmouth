@@ -9,10 +9,7 @@
 
 #This script is for the first of those two transfers
 
-#to implement:
-#change email and username accordingly
-#set in terminal to run once per desired time interval
-
+#change username, file/dir locations, and eamil accordingly
 
 echo "now syncing audio folder"
 rsync -av /Users/Student/Documents/BitBucket/efficient-learning-code/audio /Users/kziman/files_to_sync_el/ > logfile
