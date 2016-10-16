@@ -1,6 +1,9 @@
 #!/bin/bash -l
 
-#note: Portable Batch System (PBS) lines begin with "#PBS".  to-be-replaced text is sandwiched between angled brackets
+# DO NOT MODIFY THIS FILE!
+# MODIFY config.py AND create_and_submit_jobs.py AS NEEDED
+
+# Portable Batch System (PBS) lines begin with "#PBS".  to-be-replaced text is sandwiched between angled brackets
 
 # declare a name for this job
 #PBS -N <config['jobname']>
@@ -17,12 +20,16 @@
 # set the working directory *of this script* to the directory from which the job was submitted
 cd $PBS_O_WORKDIR
 
-# load the specified modules
+# load the specified modules if the script is running on discovery or ndoli
 declare -a modules=<config['modules']>
-for m in "{modules[@]}"
-do
-    module add $m
-done
+declare cluster1='discovery'
+declare cluster2='ndoli'
+if [ "$HOSTNAME" == "$cluster1" ] || [ "$HOSTNAME" == "$cluster2" ]; then
+    for m in "{modules[@]}"
+    do
+        module add $m
+    done
+fi
 
 # set the working directory *of the job* to the specified start directory
 cd <config['startdir']>

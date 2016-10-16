@@ -1,2 +1,4 @@
 
 .idea/cluster-tools-dartmouth.iml
+
+*.pyc
