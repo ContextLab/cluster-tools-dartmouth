@@ -1,10 +1,11 @@
 config = dict()
 
+config['template'] = 'run_job.sh'
+
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 # job creation options
 config['scriptdir'] = '/scratch/myname/myjob/'
 config['lockdir'] = '/scratch/myname/myjob/locks/'
-config['template'] = 'run_job.sh'
 
 # runtime options
 config['jobname'] = "myjob"  # default job name
