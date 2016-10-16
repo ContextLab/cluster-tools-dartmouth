@@ -1,8 +1,11 @@
+#!/usr/bin/python
+
 #create a bunch of job scripts
 from config import config
 import os
 import socket
 from subprocess import call
+import getpass
 
 ######## CUSTOMIZE THE CODE BETWEEN THESE LINES ########
 #each job command should be formatted as a string
@@ -49,16 +52,55 @@ def create_job(name, job_command, config):
     return job_fname
 
 
+def lock(lockfile):
+    try:
+        os.stat(lockfile)
+        return False
+    except:
+        fd = open(lockfile, 'w')
+        fd.writelines('LOCK CREATE TIME: ' + str(dt.datetime.now()))
+        fd.writelines('HOST: ' + socket.gethostname())
+        fd.writelines('USER: ' + getpass.getuser())
+        fd.writelines('\n-----\nCONFIG\n-----')
+        for k in config.keys():
+            fd.writelines(k.upper() + ': ' + str(config[k]))
+        return True
+
+
+def release(lockfile):
+    try:
+        os.stat(lockfile)
+        os.remove(lockfile)
+        return True
+    except:
+        return False
+
+
+script_dir = config['scriptdir']
+lock_dir = config['lockdir']
+try:
+    os.stat(lock_dir)
+except:
+    os.makedirs(lock_dir)
+
+locks = list()
 for n,c in zip(job_names, job_commands):
-    #TODO: don't create the job if it already exists
-    next_job = create_job(n, c, config)
+    #if the submission script crashes before all jobs are submitted, the lockfile system ensures that only
+    #not-yet-submitted jobs will be submitted the next time this script runs
+    next_lockfile = os.path.join(lock_dir, n+'.LOCK')
+    locks.append(next_lockfile)
+    if not os.path.isfile(os.path.join(script_dir, n)):
+        if lock(next_lockfile):
+            next_job = create_job(n, c, config)
 
-    #TODO: clean this up
-    if (socket.gethostname() == 'discovery') or (socket.gethostname() == 'ndoli'):
-        submit_command = 'echo "[SUBMITTING JOB]"; qsub'
-    else:
-        submit_command = 'echo "[RUNNING JOB]"; sh'
+            if (socket.gethostname() == 'discovery') or (socket.gethostname() == 'ndoli'):
+                submit_command = 'echo "[SUBMITTING JOB]"; qsub'
+            else:
+                submit_command = 'echo "[RUNNING JOB]"; sh'
 
-    call(submit_command, next_job)
+            call(submit_command, next_job)
 
+#all jobs have been submitted; release all locks
+for l in locks:
+    release(l)
 

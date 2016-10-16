@@ -3,6 +3,7 @@ config = dict()
 ######## CUSTOMIZE THE OPTIONS BETWEEN THESE LINES ########
 #job creation options
 config['scriptdir'] = '/scratch/myname/myjob/'
+config['lockdir'] = '/scratch/myname/myjob/locks/'
 config['template'] = 'run_job.sh'
 
 
