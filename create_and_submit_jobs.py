@@ -26,20 +26,20 @@ try:
 except:
     os.makedirs(results_dir)
 
-xval_file = os.path.join(results_dir, 'xval_folds')
+xval_file = os.path.join(results_dir, 'xval_folds.npz')
 np.savez(xval_file, xval_groups=xval_groups)
 
 # each job command should be formatted as a string
-job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pieman_parameter_search.py')
+job_script = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'pieman_parameter_search.py')
 
-windowlengths = np.arange(10, 100, 10)
-mus = np.arange(0, 1, 0.1)
+windowlengths = np.arange(10, 110, 10)
+mus = np.arange(0, 1.1, 0.1)
 
 job_commands = list()
 job_names = list()
 for w in windowlengths:
     for m in mus:
-        job_commands.append('pieman_analysis ' + str(w) + " " + str(m) + " " + xval_file)
+        job_commands.append(job_script + " " + str(w) + " " + str(m) + " " + xval_file)
         job_names.append('pieman_' + str(w) + '_' + str(m) + '.sh')
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 

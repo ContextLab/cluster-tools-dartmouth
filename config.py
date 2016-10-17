@@ -1,18 +1,19 @@
 import socket
+import os
 
 config = dict()
-config['template'] = 'run_job.sh'
+config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job.sh')
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 # job creation options
+config['startdir'] = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) # directory to start the job in
+
 if (socket.gethostname() == 'discovery') or (socket.gethostname() == 'ndoli'):
     config['scriptdir'] = '/idata/cdl/jmanning/brain-dynamics-model/jobs/'
     config['lockdir'] = '/idata/cdl/jmanning/brain-dynamics-model/jobs/locks/'
-    config['startdir'] = '/idata/cdl/jmanning/brain-dynamics-model'  # directory to start the job in
 else:
     config['scriptdir'] = '/Users/jmanning/Desktop/fMRI/pieman/scripts'
     config['lockdir'] = '/Users/jmanning/Desktop/fMRI/pieman/locks/'
-    config['startdir'] = '/Users/jmanning/Desktop/fMRI/pieman/'  # directory to start the job in
 
 # runtime options
 config['jobname'] = "piemanISFC_param_search"  # default job name
