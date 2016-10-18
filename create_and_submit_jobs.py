@@ -15,7 +15,7 @@ import scipy.io as sio
 from isfc import get_xval_assignments
 
 basedir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-w = sio.loadmat(os.path.join(basedir, 'weights.mat'))['weights'][0]
+w = sio.loadmat(os.path.join(basedir, 'weights700.mat'))['weights'][0]
 n_folds = 3
 xval_groups = get_xval_assignments(len(w), nfolds=n_folds)
 
