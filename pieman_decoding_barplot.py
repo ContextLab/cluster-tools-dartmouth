@@ -6,9 +6,10 @@ import matplotlib.pyplot as plt
 import seaborn as sb
 from config import config
 import scipy.io as sio
-from isfc import isfc_timepoint_decoder
+from isfc import timepoint_decoder
 
 results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'results')
+xval_groups = np.load(os.path.join(results_dir, 'xval_folds.npz'))['xval_groups']
 fig_dir = os.path.join(results_dir, 'figs')
 params = np.load(os.path.join(results_dir, 'best_parameters.npz'))
 
@@ -21,14 +22,22 @@ conditions = set(data.keys()) - set(ignore_keys)
 
 columns = pd.MultiIndex.from_product([conditions, ['error', 'accuracy', 'rank']], names=['conditions', 'metric'])
 
-results = pd.DataFrame(index=iterations, columns=columns)
-for c in conditions:
+results_file = os.path.join(results_dir, 'collated_results.pkl')
+
+if not os.path.isfile(results_file):
+    results = pd.DataFrame(index=iterations, columns=columns)
+    for c in conditions:
         next_data = data[c][0]
+        if c == "intact":
+            next_data = next_data[np.where(xval_groups != 0)]
+
         for t in iterations:
-            next_results = isfc_timepoint_decoder(next_data, windowsize=params['windowlength'].tolist(), mu=params['mu'].tolist(), nfolds=2)
+            next_results = timepoint_decoder(next_data, windowsize=params['windowlength'].tolist(), mu=params['mu'].tolist(), nfolds=2)
             results[c]['error'][t] = next_results['error']
             results[c]['accuracy'][t] = next_results['accuracy']
             results[c]['rank'][t] = next_results['rank']
+    results.to_pickle(results_file)
+
+results = pd.read_pickle(results_file)
 
 
-#FIXME: STOPPED HERE...do something with the results...
