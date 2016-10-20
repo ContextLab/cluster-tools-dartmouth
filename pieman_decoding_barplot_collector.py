@@ -1,17 +1,22 @@
-import os
-
 import numpy as np
 import pandas as pd
 import scipy.io as sio
 from config import config
 from python.isfc import timepoint_decoder
+import os
 
-results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'results')
-xval_groups = np.load(os.path.join(results_dir, 'xval_folds.npz'))['xval_groups']
-fig_dir = os.path.join(results_dir, 'figs')
-params = np.load(os.path.join(results_dir, 'best_parameters.npz'))
+xval_groups = np.load(os.path.join(config['resultsdir'], 'xval_folds.npz'))['xval_groups']
+fig_dir = os.path.join(config['resultsdir'], 'figs')
+params = np.load(os.path.join(config['resultsdir'], 'best_parameters.npz'))
 
-data = sio.loadmat(os.path.join(os.path.dirname(config['scriptdir']), 'pieman_data.mat'))
+data = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'))
+ignore_keys = ('__header__', '__globals__', '__version__')
+conditions = set(data.keys()) - set(ignore_keys)
+
+save_file = os.path.join(config['resultsdir'], 'opt_results_' + condition + '_' + str(iternum))
+
+
+
 n_iterations = 10
 iterations = np.arange(n_iterations)
 
@@ -30,12 +35,11 @@ if not os.path.isfile(results_file):
             next_data = next_data[np.where(xval_groups != 0)]
 
         for t in iterations:
-            next_results = timepoint_decoder(next_data, windowsize=params['windowlength'].tolist(), mu=params['mu'].tolist(), nfolds=2)
+            next_results = timepoint_decoder(next_data, windowsize=params['windowlength'].tolist(),
+                                             mu=params['mu'].tolist(), nfolds=2)
             results[c]['error'][t] = next_results['error']
             results[c]['accuracy'][t] = next_results['accuracy']
             results[c]['rank'][t] = next_results['rank']
     results.to_pickle(results_file)
 
 results = pd.read_pickle(results_file)
-
-

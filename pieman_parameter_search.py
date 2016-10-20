@@ -7,13 +7,15 @@ import os
 import socket
 from subprocess import call
 
+# ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 import numpy as np
 import scipy.io as sio
 from config import config
 from python.isfc import get_xval_assignments
 
-basedir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-w = sio.loadmat(os.path.join(basedir, 'weights700.mat'))['weights'][0]
+basedir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))), 'data')
+w = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'), variable_names=('intact'))['intact'][0]
+
 n_folds = 3
 xval_groups = get_xval_assignments(len(w), nfolds=n_folds)
 
@@ -28,10 +30,13 @@ xval_file = os.path.join(results_dir, 'xval_folds.npz')
 np.savez(xval_file, xval_groups=xval_groups)
 
 # each job command should be formatted as a string
-job_script = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'pieman_parameter_search.py')
+job_script = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'pieman_parameter_search_cruncher.py')
 
-windowlengths = np.arange(10, 110, 10)
-mus = np.arange(0, 1.1, 0.1)
+wdelta = 5
+windowlengths = np.arange(wdelta, 100 + wdelta, wdelta)
+
+mudelta = 0.05
+mus = np.arange(0, 1 + mudelta, mudelta)
 
 job_commands = list()
 job_names = list()

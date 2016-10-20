@@ -1,7 +1,34 @@
-Cluster Tools for Dartmouth
+Cluster Tools for Dartmouth -- Pieman edition
 
 Author: Jeremy R. Manning (jeremy@dartmouth.edu)
-Date: October 16, 2016
+Date: October 20, 2016
+
+Scripts are organized into groups of three:
+
+main script: creates a set of bash scripts and submits to the cluster scheduler
+cruncher: does the work for one job (e.g. one piece of the dataset or one parameter)
+collector: aggregates the data and creates figures
+
+
+To replicate the Pieman decoding analyses in Manning et al. (2016), run:
+
+1.) pieman_parameter_search.py.  This uses a subset of the "intact" condition of the Pieman dataset to find an optimal
+ set of decoding parameters.  The pieman_parameter_search_crunch.py script runs the analysis for a single parameter
+ combination and pieman_parameter_search_collector.py reads in the results, generates some figures, and saves out the
+ optimal parameter values.
+
+2.) pieman_cluster_bootstrap_stats.py.  This reads in the optimal parameter values and uses them to decode:
+  a.) The remaining data from the "intact" conditon
+  b.) All of the data from the "paragraph", "word-scrambled", and "rest" conditions
+
+  The decoding analyses are repeated 100 times each (using different randomly assigned cross validation folds each time)
+  to obtain a distribution of classification performance scores for each experimental condition.  Finally,
+  pieman_decoding_barplot_cruncher.py reads in the decoding results and generates a bar plot summarizing decoding
+  performance in each condition.
+
+
+======
+ORIGINAL CLUSTER TOOLS README:
 
 This repository provides a set of tools for submitting jobs on Dartmouth's
 Discovery and Ndoli computing clusters.  With minimal modification, they may

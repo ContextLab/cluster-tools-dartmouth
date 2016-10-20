@@ -1,7 +1,7 @@
 #!/bin/bash -l
 
 # DO NOT MODIFY THIS FILE!
-# MODIFY config.py AND create_and_submit_jobs.py AS NEEDED
+# MODIFY config.py AND pieman_parameter_search.py AS NEEDED
 
 # Portable Batch System (PBS) lines begin with "#PBS".  to-be-replaced text is sandwiched between angled brackets
 
