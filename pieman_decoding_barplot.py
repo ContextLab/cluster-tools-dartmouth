@@ -1,12 +1,10 @@
+import os
+
 import numpy as np
 import pandas as pd
-import os
-import fnmatch
-import matplotlib.pyplot as plt
-import seaborn as sb
-from config import config
 import scipy.io as sio
-from isfc import timepoint_decoder
+from config import config
+from python.isfc import timepoint_decoder
 
 results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'results')
 xval_groups = np.load(os.path.join(results_dir, 'xval_folds.npz'))['xval_groups']

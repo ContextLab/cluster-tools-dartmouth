@@ -1,18 +1,16 @@
 #!/usr/bin/python
 
 # create a bunch of job scripts
-from config import config
-from subprocess import call
+import datetime as dt
+import getpass
 import os
 import socket
-import getpass
-import datetime as dt
+from subprocess import call
 
-
-# ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 import numpy as np
 import scipy.io as sio
-from isfc import get_xval_assignments
+from config import config
+from python.isfc import get_xval_assignments
 
 basedir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 w = sio.loadmat(os.path.join(basedir, 'weights700.mat'))['weights'][0]
