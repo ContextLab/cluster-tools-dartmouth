@@ -10,12 +10,14 @@ config['startdir'] = os.path.dirname(os.path.dirname(os.path.realpath(__file__))
 
 if (socket.gethostname() == 'discovery') or (socket.gethostname() == 'ndoli'):
     config['datadir'] = '/idata/cdl/data/fMRI/pieman/'
+    config['workingdir'] = '/idata/cdl/jmanning/pieman_analysis/'
 else:
     config['datadir'] = '/Users/jmanning/Desktop/fMRI/pieman'
+    config['workingdir'] = config['datadir']
 
-config['scriptdir'] = os.path.join(config['datadir'], 'scripts')
-config['lockdir'] = os.path.join(config['datadir'], 'locks')
-config['resultsdir'] = os.path.join(config['datadir'], 'results')
+config['scriptdir'] = os.path.join(config['workingdir'], 'scripts')
+config['lockdir'] = os.path.join(config['workingdir'], 'locks')
+config['resultsdir'] = os.path.join(config['workingdir'], 'results')
 
 
 # runtime options
