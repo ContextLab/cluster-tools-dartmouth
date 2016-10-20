@@ -11,7 +11,7 @@ from subprocess import call
 import numpy as np
 import scipy.io as sio
 from config import config
-from python.isfc import get_xval_assignments
+from isfc import get_xval_assignments
 
 w = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'), variable_names=('intact'))['intact'][0]
 
