@@ -13,24 +13,22 @@ import scipy.io as sio
 from config import config
 from python.isfc import get_xval_assignments
 
-basedir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))), 'data')
 w = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'), variable_names=('intact'))['intact'][0]
 
 n_folds = 3
 xval_groups = get_xval_assignments(len(w), nfolds=n_folds)
 
-results_dir = os.path.join(basedir, 'results')
 # noinspection PyBroadException
 try:
-    os.stat(results_dir)
+    os.stat(config['resultsdir'])
 except:
-    os.makedirs(results_dir)
+    os.makedirs(config['resultsdir'])
 
-xval_file = os.path.join(results_dir, 'xval_folds.npz')
+xval_file = os.path.join(config['resultsdir'], 'xval_folds.npz')
 np.savez(xval_file, xval_groups=xval_groups)
 
 # each job command should be formatted as a string
-job_script = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'pieman_parameter_search_cruncher.py')
+job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pieman_parameter_search_cruncher.py')
 
 wdelta = 5
 windowlengths = np.arange(wdelta, 100 + wdelta, wdelta)

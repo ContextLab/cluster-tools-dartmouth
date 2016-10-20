@@ -5,7 +5,7 @@ import sys
 
 import numpy as np
 import scipy.io as sio
-from python import isfc
+import isfc
 from config import config
 
 try:
@@ -20,10 +20,8 @@ xval_file = sys.argv[3]
 xval_groups = np.load(xval_file)['xval_groups']
 
 data = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'), variable_names=('intact'))['intact'][0]
-#data = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'))['intact'][0]
 
 results_file = os.path.join(config['resultsdir'], "xvalresults_" + str(windowlength) + '_' + str(mu))
-results = isfc.timepoint_decoder(data[xval_groups == 0], windowsize=windowlength, mu=mu, nfolds=2, connectivity_fun=isfc.wisfc)
+results = isfc.timepoint_decoder(data[xval_groups == 0], windowsize=windowlength, mu=mu, nfolds=2, connectivity_fun=isfc.isfc)
 
 np.savez(results_file, results=results)
-
