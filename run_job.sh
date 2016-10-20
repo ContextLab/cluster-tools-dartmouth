@@ -21,14 +21,15 @@
 cd $PBS_O_WORKDIR
 
 # load the specified modules if the script is running on discovery or ndoli
-declare -a modules=<config['modules']>
+#declare -a modules=<config['modules']>
 declare cluster1='discovery'
 declare cluster2='ndoli'
 if [ "$HOSTNAME" == "$cluster1" ] || [ "$HOSTNAME" == "$cluster2" ]; then
-    for m in "{modules[@]}"
-    do
-        module add $m
-    done
+    #for m in "{modules[@]}"
+    #do
+    #    module add $m
+    #done
+    source activate hobd
 fi
 
 # set the working directory *of the job* to the specified start directory
