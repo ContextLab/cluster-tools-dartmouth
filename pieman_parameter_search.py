@@ -41,7 +41,7 @@ job_names = list()
 for w in windowlengths:
     for m in mus:
         job_commands.append(job_script + " " + str(w) + " " + str(m) + " " + xval_file)
-        job_names.append('pieman_' + str(w) + '_' + str(m) + '.sh')
+        job_names.append('pieman_paramsearch_' + str(w) + '_' + str(m) + '.sh')
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
 assert(len(job_commands) == len(job_names))
