@@ -19,19 +19,17 @@
 # set the working directory *of the job* to the specified start directory
 cd <config['startdir']>
 
-# load the specified modules if the script is running on discovery or ndoli
-#declare -a modules=<config['modules']>
 declare cluster1='discovery'
 declare cluster2='ndoli'
 if [ "$HOSTNAME" == "$cluster1" ] || [ "$HOSTNAME" == "$cluster2" ]; then
-    for m in "{modules[@]}"
-    do
-        module load $m
-    done
-
+    module load python/2.7.11
     source activate hobd
     module unload python/2.7.11
 fi
 
 # run the job
 <config['cmd_wrapper']> <job_command> #note: job_command is reserved for the job command; it should not be specified in config.py
+
+if [ "$HOSTNAME" == "$cluster1" ] || [ "$HOSTNAME" == "$cluster2" ]; then
+    source deactivate hobd
+fi
