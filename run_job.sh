@@ -22,9 +22,18 @@ cd <config['startdir']>
 declare cluster1='discovery'
 declare cluster2='ndoli'
 if [ "$HOSTNAME" == "$cluster1" ] || [ "$HOSTNAME" == "$cluster2" ]; then
+    echo ----
+    echo LOADING PYTHON 2.7.11
     module load python/2.7.11
+
+    echo ACTIVATING BRAIN DYNAMICS MODEL VIRTUAL ENVIRONMENT (CONDA)
     source activate hobd
+
+    echo UNLOADING PYTHON 2.7.11
     module unload python/2.7.11
+
+    echo PYTHON PATH CONFIGURATION COMPLETE
+    echo ----
 fi
 
 # run the job

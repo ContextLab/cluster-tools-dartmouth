@@ -15,9 +15,6 @@ from isfc import get_xval_assignments
 
 w = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'), variable_names=('intact'))['intact'][0]
 
-n_folds = 3
-xval_groups = get_xval_assignments(len(w), nfolds=n_folds)
-
 # noinspection PyBroadException
 try:
     os.stat(config['resultsdir'])
@@ -25,15 +22,20 @@ except:
     os.makedirs(config['resultsdir'])
 
 xval_file = os.path.join(config['resultsdir'], 'xval_folds.npz')
-np.savez(xval_file, xval_groups=xval_groups)
+if not os.path.isfile(xval_file):
+    n_folds = 3
+    xval_groups = get_xval_assignments(len(w), nfolds=n_folds)
+    np.savez(xval_file, xval_groups=xval_groups)
+else:
+    xval_groups = np.load(xval_file)['xval_groups']
 
 # each job command should be formatted as a string
 job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pieman_parameter_search_cruncher.py')
 
-wdelta = 5
+wdelta = 50
 windowlengths = np.arange(wdelta, 100 + wdelta, wdelta)
 
-mudelta = 0.05
+mudelta = 0.5
 mus = np.arange(0, 1 + mudelta, mudelta)
 
 job_commands = list()
