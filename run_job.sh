@@ -26,7 +26,7 @@ if [ "$HOSTNAME" == "$cluster1" ] || [ "$HOSTNAME" == "$cluster2" ]; then
     echo LOADING PYTHON 2.7.11
     module load python/2.7.11
 
-    echo ACTIVATING BRAIN DYNAMICS MODEL VIRTUAL ENVIRONMENT (CONDA)
+    echo ACTIVATING BRAIN DYNAMICS MODEL VIRTUAL ENVIRONMENT
     source activate hobd
 
     echo UNLOADING PYTHON 2.7.11
