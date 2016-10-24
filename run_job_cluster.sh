@@ -19,26 +19,20 @@
 # set the working directory *of the job* to the specified start directory
 cd <config['startdir']>
 
-declare cluster1='discovery'
-declare cluster2='ndoli'
-if [ "$HOSTNAME" == "$cluster1" ] || [ "$HOSTNAME" == "$cluster2" ]; then
-    echo ----
-    echo LOADING PYTHON 2.7.11
-    module load python/2.7.11
+echo ----
+echo LOADING PYTHON 2.7.11
+module load python/2.7.11
 
-    echo ACTIVATING BRAIN DYNAMICS MODEL VIRTUAL ENVIRONMENT
-    source activate hobd
+echo ACTIVATING BRAIN DYNAMICS MODEL VIRTUAL ENVIRONMENT
+source activate hobd
 
-    echo UNLOADING PYTHON 2.7.11
-    module unload python/2.7.11
+echo UNLOADING PYTHON 2.7.11
+module unload python/2.7.11
 
-    echo PYTHON PATH CONFIGURATION COMPLETE
-    echo ----
-fi
+echo PYTHON PATH CONFIGURATION COMPLETE
+echo ----
 
 # run the job
 <config['cmd_wrapper']> <job_command> #note: job_command is reserved for the job command; it should not be specified in config.py
 
-if [ "$HOSTNAME" == "$cluster1" ] || [ "$HOSTNAME" == "$cluster2" ]; then
-    source deactivate hobd
-fi
+source deactivate hobd
