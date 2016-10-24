@@ -32,10 +32,10 @@ else:
 # each job command should be formatted as a string
 job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pieman_parameter_search_cruncher.py')
 
-wdelta = 50
+wdelta = 5
 windowlengths = np.arange(wdelta, 100 + wdelta, wdelta)
 
-mudelta = 0.5
+mudelta = 0.05
 mus = np.arange(0, 1 + mudelta, mudelta)
 
 job_commands = list()
