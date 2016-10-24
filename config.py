@@ -6,16 +6,16 @@ config = dict()
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 # job creation options
 
-if (socket.gethostname() == 'discovery') or (socket.gethostname() == 'ndoli'):
-    config['datadir'] = '/idata/cdl/data/fMRI/pieman/'
-    config['workingdir'] = '/idata/cdl/jmanning/pieman_analysis/'
-    config['startdir'] = '/idata/cdl/jmanning'
-    config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_cluster.sh')
-else:
+if (socket.gethostname() == 'vertex') or (socket.gethostname() == 'vertex.kiewit.dartmouth.edu'):
     config['datadir'] = '/Users/jmanning/Desktop/fMRI/pieman'
     config['workingdir'] = config['datadir']
     config['startdir'] = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))  # directory to start the job in
     config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_local.sh')
+else:
+    config['datadir'] = '/idata/cdl/data/fMRI/pieman/'
+    config['workingdir'] = '/idata/cdl/jmanning/pieman_analysis/'
+    config['startdir'] = '/idata/cdl/jmanning'
+    config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_cluster.sh')
 
 config['scriptdir'] = os.path.join(config['workingdir'], 'scripts')
 config['lockdir'] = os.path.join(config['workingdir'], 'locks')
