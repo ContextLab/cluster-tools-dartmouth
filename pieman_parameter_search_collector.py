@@ -78,8 +78,9 @@ xval_accuracies_fig.get_figure().savefig(os.path.join(fig_dir, 'xval_accuracies_
 # best parameters are the ones that yield the highest classification accuracy
 accuracies = xval_accuracies.values
 best_results = results[results['accuracies'] == np.max(results['accuracies'])]
-best_mu = round(best_results['mu'], 10)
-best_windowlength = int(best_results['windowlength'])
+
+best_windowlength = int(best_results['windowlength'][best_results['windowlength'] == np.min(best_results['windowlength'])])
+best_mu = round(best_results['mu'][best_results['windowlength'] == best_windowlength], 10)
 
 np.savez(os.path.join(config['resultsdir'], 'best_parameters'), windowlength=best_windowlength, mu=best_mu)
 
