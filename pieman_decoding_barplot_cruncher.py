@@ -5,7 +5,7 @@ import sys
 import numpy as np
 import scipy.io as sio
 from config import config
-from python.isfc import timepoint_decoder
+from isfc import timepoint_decoder
 
 iternum = int(sys.argv[1])
 condition = sys.argv[2]
