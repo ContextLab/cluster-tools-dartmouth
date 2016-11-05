@@ -1,10 +1,9 @@
 import numpy as np
 import pandas as pd
-import scipy.io as sio
 from config import config
-from python.isfc import timepoint_decoder
 import os
 from glob import glob as lsdir
+import seaborn as sb
 
 def parse_fname(fname, condition):
     return int(fname[len('opt_results_' + condition + '_'):-3])
@@ -29,13 +28,13 @@ if not os.path.isfile(results_file):
     results = pd.DataFrame(index=iterations, columns=columns)
     for c in conditions:
         for t in iterations:
-
-
-            next_results = timepoint_decoder(next_data, windowsize=params['windowlength'].tolist(),
-                                             mu=params['mu'].tolist(), nfolds=2)
+            next_results = np.load(os.path.join(config['resultsdir'], 'opt_results_' + c + str(t) + '.npz'))['results']
             results[c]['error'][t] = next_results['error']
             results[c]['accuracy'][t] = next_results['accuracy']
             results[c]['rank'][t] = next_results['rank']
     results.to_pickle(results_file)
 
 results = pd.read_pickle(results_file)
+
+accuracies = results.pivot('condition', 'iteration', 'accuracy')
+sb.violinplot(x='condition', y='accuracy', data=accuracies)
