@@ -44,6 +44,11 @@ if not os.path.isfile(results_file):
 
 results = pd.read_pickle(results_file)
 
-#FIXME: this is broken...
-accuracies = results.pivot('conditions', 'iteration', 'accuracy')
-sb.violinplot(x='condition', y='accuracy', data=accuracies)
+accuracies = pd.DataFrame(index=iterations, columns=conditions)
+for c in conditions:
+    accuracies[c] = results[c]['accuracy']
+
+sb.set(font_scale=1.5)
+ax = sb.barplot(data=accuracies, color='k')
+ax.set(xlabel='Condition', ylabel='Decoding accuracy')
+sb.plt.savefig(os.path.join(fig_dir, 'decoding_accuracy.pdf'))
