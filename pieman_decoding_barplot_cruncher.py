@@ -21,5 +21,5 @@ save_file = os.path.join(config['resultsdir'], 'opt_results_' + condition + '_' 
 
 if not os.path.isfile(save_file):
     results = timepoint_decoder(data, windowsize=params['windowlength'].tolist(), mu=params['mu'].tolist(), nfolds=2)
-    np.savez(save_file)
+    np.savez(save_file, results=results)
 
