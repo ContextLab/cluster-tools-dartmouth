@@ -4,37 +4,46 @@ from config import config
 import os
 from glob import glob as lsdir
 import seaborn as sb
+import scipy.io as sio
+from copy import copy
 
 def parse_fname(fname, condition):
-    return int(fname[len('opt_results_' + condition + '_'):-3])
+    fname = os.path.split(fname)[1]
+    return int(fname[len('opt_results_' + condition + '_'):-4])
 
 xval_groups = np.load(os.path.join(config['resultsdir'], 'xval_folds.npz'))['xval_groups']
 fig_dir = os.path.join(config['resultsdir'], 'figs')
 params = np.load(os.path.join(config['resultsdir'], 'best_parameters.npz'))
 
-# data = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'))
+data = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'))
 ignore_keys = ('__header__', '__globals__', '__version__')
 conditions = set(data.keys()) - set(ignore_keys)
 
 columns = pd.MultiIndex.from_product([conditions, ['error', 'accuracy', 'rank']], names=['conditions', 'metric'])
-results_file = os.path.join(results_dir, 'collated_results.pkl')
+results_file = os.path.join(config['resultsdir'], 'collated_results.pkl')
 
 iterations = []
 for c in conditions:
     next_files = lsdir(os.path.join(config['resultsdir'], 'opt_results_' + c + '*.npz'))
-    iterations = np.union1d(iterations, map(parse_fname, next_files))
+    iterations = np.union1d(iterations, map(parse_fname, next_files, [c]*len(next_files)))
 
 if not os.path.isfile(results_file):
     results = pd.DataFrame(index=iterations, columns=columns)
     for c in conditions:
         for t in iterations:
-            next_results = np.load(os.path.join(config['resultsdir'], 'opt_results_' + c + str(t) + '.npz'))['results']
-            results[c]['error'][t] = next_results['error']
-            results[c]['accuracy'][t] = next_results['accuracy']
-            results[c]['rank'][t] = next_results['rank']
+            next_file = os.path.join(config['resultsdir'], 'opt_results_' + c + '_' + str(int(t)) + '.npz')
+            if os.path.isfile(next_file):
+                try:
+                    next_results = np.load(next_file)['results'].item()
+                    results.set_value(t, (c, 'error'), next_results['error'])
+                    results.set_value(t, (c, 'accuracy'), next_results['accuracy'])
+                    results.set_value(t, (c, 'rank'), next_results['rank'])
+                except:
+                    continue
     results.to_pickle(results_file)
 
 results = pd.read_pickle(results_file)
 
-accuracies = results.pivot('condition', 'iteration', 'accuracy')
+#FIXME: this is broken...
+accuracies = results.pivot('conditions', 'iteration', 'accuracy')
 sb.violinplot(x='condition', y='accuracy', data=accuracies)

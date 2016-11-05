@@ -6,7 +6,7 @@ config = dict()
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 # job creation options
 
-if (socket.gethostname() == 'vertex') or (socket.gethostname() == 'vertex.kiewit.dartmouth.edu'):
+if (socket.gethostname() == 'vertex') or (socket.gethostname() == 'vertex.kiewit.dartmouth.edu') or (socket.gethostname() == 'vertex.local'):
     config['datadir'] = '/Users/jmanning/Desktop/fMRI/pieman'
     config['workingdir'] = config['datadir']
     config['startdir'] = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))  # directory to start the job in
