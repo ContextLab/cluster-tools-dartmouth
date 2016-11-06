@@ -1,36 +1,19 @@
-import socket
-import os
-
 config = dict()
+
+config['template'] = 'run_job.sh'
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 # job creation options
-
-#add additional checks for your local machine here...
-if (socket.gethostname() == 'vertex') or (socket.gethostname() == 'vertex.kiewit.dartmouth.edu') or (socket.gethostname() == 'vertex.local'):
-    config['datadir'] = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'testing')
-    config['workingdir'] = config['datadir']
-    config['startdir'] = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))  # directory to start the job in
-    config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_local.sh')
-else:
-    config['datadir'] = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'testing')
-    config['workingdir'] = config['datadir']
-    config['startdir'] = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_cluster.sh')
-
-config['scriptdir'] = os.path.join(config['workingdir'], 'scripts')
-config['lockdir'] = os.path.join(config['workingdir'], 'locks')
-config['resultsdir'] = os.path.join(config['workingdir'], 'results')
-
+config['scriptdir'] = '/scratch/myname/myjob/'
+config['lockdir'] = '/scratch/myname/myjob/locks/'
 
 # runtime options
-config['jobname'] = "superEEG"  # default job name
-config['q'] = "default"  # options: default, test, largeq
+config['jobname'] = "myjob"  # default job name
+config['q'] = "default"  # options: default, testing, largeq
 config['nnodes'] = 1  # how many nodes to use for this one job
-config['ppn'] = 4  # how many processors to use for this one job (assume 4GB of RAM per processor)
-config['walltime'] = '20:00:00'  # maximum runtime, in h:MM:SS
+config['ppn'] = 1  # how many processors to use for this one job (assume 4GB of RAM per processor)
+config['walltime'] = '0:00:30'  # maximum runtime, in h:MM:SS
+config['startdir'] = '/scratch/myname/myjob'  # directory to start the job in
 config['cmd_wrapper'] = "python"  # replace with actual command wrapper (e.g. matlab, python, etc.)
-
-#extra options
-
+config['modules'] = "(\"python/2.7.11\")"  # separate each module with a space and enclose in (escaped) double quotes
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======

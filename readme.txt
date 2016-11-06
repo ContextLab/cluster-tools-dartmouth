@@ -1,20 +1,3 @@
-SuperEEG analysis tools
-
-To run the main analysis, use:
-
-python supereeg_submit.py
-
-If run on Discovery, it'll submit a batch of jobs to run in parallel.  If run on a personal computer it'll run each job
-in sequence.
-
-NOTE: jobs have not been implemented yet
-
-
-
-
-
-=======
-
 Cluster Tools for Dartmouth
 
 Author: Jeremy R. Manning (jeremy@dartmouth.edu)
