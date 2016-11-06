@@ -18,7 +18,7 @@ conditions = set(data.keys()) - set(ignore_keys)
 
 n_iterations = 100
 
-job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pieman_decoding_barplot_cruncher.py')
+job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pieman_barplot_cruncher.py')
 job_commands = list()
 job_names = list()
 for c in conditions:
