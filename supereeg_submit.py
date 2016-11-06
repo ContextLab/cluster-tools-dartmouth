@@ -1,21 +1,19 @@
 #!/usr/bin/python
 
 # create a bunch of job scripts
-from config import config
-from subprocess import call
+import datetime as dt
+import getpass
 import os
 import socket
-import getpass
-import datetime as dt
-
+from subprocess import call
+from config import config
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
-# each job command should be formatted as a string
-job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test.py')
-job_commands = map(lambda x: x[0]+" "+str(x[1]), zip([job_script]*10, range(10)))
+import numpy as np
+import scipy.io as sio
 
-# job_names should specify the file name of each script (as a list, of the same length as job_commands)
-job_names = map(lambda x: str(x)+'.sh', range(len(job_commands)))
+
+#TODO: put job code here
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
 assert(len(job_commands) == len(job_names))
