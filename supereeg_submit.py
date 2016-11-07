@@ -12,7 +12,11 @@ from config import config
 import numpy as np
 import scipy.io as sio
 
-
+#find all files that we'll need to convert from .mat to .npz
+mat_files = ....
+for i in range(len(mat_files)):
+    job_commands[i] = 'mat2npz_wrapper.py ' + mat_files[i]
+    job_names[i] = 'mat2npz_converter_' + str(i) + '.sh'
 #TODO: put job code here
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
