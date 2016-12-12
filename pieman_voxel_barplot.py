@@ -11,29 +11,28 @@ pltconfig['svg.fonttype'] = 'none'
 
 def parse_fname(fname, condition):
     fname = os.path.split(fname)[1]
-    return int(fname[len('opt_results_' + condition + '_'):-4])
+    return int(fname[len('voxel_results_' + condition + '_'):-4])
 
 xval_groups = np.load(os.path.join(config['resultsdir'], 'xval_folds.npz'))['xval_groups']
 fig_dir = os.path.join(config['resultsdir'], 'figs')
-params = np.load(os.path.join(config['resultsdir'], 'best_parameters.npz'))
 
 data = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'))
 ignore_keys = ('__header__', '__globals__', '__version__')
 conditions = set(data.keys()) - set(ignore_keys)
 
 columns = pd.MultiIndex.from_product([conditions, ['error', 'accuracy', 'rank']], names=['conditions', 'metric'])
-results_file = os.path.join(config['resultsdir'], 'collated_results.pkl')
+results_file = os.path.join(config['resultsdir'], 'collated_voxel_results.pkl')
 
 iterations = []
 for c in conditions:
-    next_files = lsdir(os.path.join(config['resultsdir'], 'opt_results_' + c + '*.npz'))
+    next_files = lsdir(os.path.join(config['resultsdir'], 'voxel_results_' + c + '*.npz'))
     iterations = np.union1d(iterations, map(parse_fname, next_files, [c]*len(next_files)))
 
 if not os.path.isfile(results_file):
     results = pd.DataFrame(index=iterations, columns=columns)
     for c in conditions:
         for t in iterations:
-            next_file = os.path.join(config['resultsdir'], 'opt_results_' + c + '_' + str(int(t)) + '.npz')
+            next_file = os.path.join(config['resultsdir'], 'voxel_results_' + c + '_' + str(int(t)) + '.npz')
             if os.path.isfile(next_file):
                 try:
                     next_results = np.load(next_file)['results'].item()
@@ -53,4 +52,4 @@ for c in conditions:
 sb.set(font_scale=1.5)
 ax = sb.barplot(data=accuracies, color='k')
 ax.set(xlabel='Condition', ylabel='Decoding accuracy')
-sb.plt.savefig(os.path.join(fig_dir, 'decoding_accuracy.pdf'))
+sb.plt.savefig(os.path.join(fig_dir, 'decoding_accuracy_voxel.pdf'))
