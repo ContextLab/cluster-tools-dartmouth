@@ -16,6 +16,8 @@
 # specify how long the job should run (wall time)
 #PBS -l walltime=<config['walltime']>
 
+#PBS -l feature='cellk|cellm|celle|cellh|cellg'
+
 # set the working directory *of the job* to the specified start directory
 cd <config['startdir']>
 
@@ -36,3 +38,7 @@ echo ----
 <config['cmd_wrapper']> <job_command> #note: job_command is reserved for the job command; it should not be specified in config.py
 
 source deactivate hobd
+
+export MKL_NUM_THREADS=16
+export NUMEXPR_NUM_THREADS=16
+export OMP_NUM_THREADS=16
