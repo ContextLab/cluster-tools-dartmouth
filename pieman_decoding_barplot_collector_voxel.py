@@ -7,7 +7,7 @@ import seaborn as sb
 import scipy.io as sio
 from matplotlib import rcParams as pltconfig
 
-pltconfig['svg.fonttype'] = 'none'
+pltconfig['pdf.fonttype'] = 42
 
 def parse_fname(fname, condition):
     fname = os.path.split(fname)[1]
@@ -51,4 +51,5 @@ for c in conditions:
 sb.set(font_scale=1.5)
 ax = sb.barplot(data=accuracies, color='k')
 ax.set(xlabel='Condition', ylabel='Decoding accuracy')
+sb.plt.ylim(0, 0.15)
 sb.plt.savefig(os.path.join(fig_dir, 'decoding_accuracy_voxel.pdf'))
