@@ -19,7 +19,7 @@ else:
 
 config['scriptdir'] = os.path.join(config['workingdir'], 'scripts')
 config['lockdir'] = os.path.join(config['workingdir'], 'locks')
-config['resultsdir'] = os.path.join(config['workingdir'], 'results')
+config['resultsdir'] = os.path.join(config['workingdir'], 'results_EXCLUDE_OVERLAPPING')
 
 
 # runtime options

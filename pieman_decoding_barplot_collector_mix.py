@@ -14,6 +14,8 @@ def parse_fname(fname, condition):
     return int(fname[len('mix_results_' + condition + '_'):-4])
 
 fig_dir = os.path.join(config['resultsdir'], 'figs')
+if not os.path.isdir(fig_dir):
+    os.mkdir(fig_dir)
 
 data = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'))
 ignore_keys = ('__header__', '__globals__', '__version__')
@@ -51,5 +53,5 @@ for c in conditions:
 sb.set(font_scale=1.5)
 ax = sb.barplot(data=accuracies, color='k')
 ax.set(xlabel='Condition', ylabel='Decoding accuracy')
-sb.plt.ylim(0, 0.15)
+sb.plt.ylim(0, 0.16)
 sb.plt.savefig(os.path.join(fig_dir, 'decoding_accuracy_mix.pdf'))

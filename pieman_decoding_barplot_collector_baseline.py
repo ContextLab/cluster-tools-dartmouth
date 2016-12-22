@@ -51,5 +51,5 @@ for c in conditions:
 sb.set(font_scale=1.5)
 ax = sb.barplot(data=accuracies, color='k')
 ax.set(xlabel='Condition', ylabel='Decoding accuracy')
-sb.plt.ylim(0, 0.15)
+sb.plt.ylim(0, 0.16)
 sb.plt.savefig(os.path.join(fig_dir, 'decoding_accuracy_baseline.pdf'))
