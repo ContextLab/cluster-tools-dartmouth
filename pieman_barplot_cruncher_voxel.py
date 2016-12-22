@@ -22,5 +22,5 @@ if not os.path.isfile(save_file):
 
     data = np.array(map(load_helper, fnames))
 
-    results = timepoint_decoder(data, windowsize=90, mu=0, nfolds=2)
+    results = timepoint_decoder(data, windowsize=60, mu=0, nfolds=2)
     np.savez(save_file, results=results)

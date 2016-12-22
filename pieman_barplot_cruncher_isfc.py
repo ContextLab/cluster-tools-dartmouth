@@ -20,5 +20,5 @@ if not os.path.isfile(save_file):
     #    data = data[np.where(xval_groups != 0)]
 
     # windowsize from Simony et al., 2016
-    results = timepoint_decoder(data, windowsize=90, mu=1, nfolds=2)
+    results = timepoint_decoder(data, windowsize=60, mu=1, nfolds=2)
     np.savez(save_file, results=results)

@@ -24,7 +24,7 @@ job_names = list()
 for c in conditions:
     for i in np.arange(n_iterations):
         job_commands.append(job_script + " " + str(i) + " " + c)
-        job_names.append('pieman_barplot_baseline_' + c + "_iter" + str(i) + '.sh')
+        job_names.append('pieman_barplot_mix_' + c + "_iter" + str(i) + '.sh')
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
 assert(len(job_commands) == len(job_names))
