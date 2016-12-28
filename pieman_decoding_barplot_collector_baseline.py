@@ -25,7 +25,7 @@ results_file = os.path.join(config['resultsdir'], 'collated_results_baseline.pkl
 iterations = []
 for c in conditions:
     next_files = lsdir(os.path.join(config['resultsdir'], 'baseline_results_' + c + '*.npz'))
-    iterations = np.union1d(iterations, map(parse_fname, next_files, [c]*len(next_files)))
+    iterations = np.union1d(iterations, map(parse_fname, next_files, [c] * len(next_files)))
 
 if not os.path.isfile(results_file):
     results = pd.DataFrame(index=iterations, columns=columns)
