@@ -24,7 +24,7 @@ for c in conditions:
     next_files = lsdir(os.path.join(config['resultsdir'], 'baseline_results_' + c + '*.npz'))
     iterations = np.union1d(iterations, map(parse_fname, next_files, [c] * len(next_files)))
 
-metrics = ('voxel', 'baseline', 'isfc', 'mix')
+metrics = ('voxel', 'baseline', 'isfc', 'mix', 'atlas')
 columns = pd.MultiIndex.from_product([conditions, metrics], names=['Condition', 'Feature type'])
 
 combined_results_file = os.path.join(config['resultsdir'], 'combined_results.pkl')
@@ -44,6 +44,6 @@ if not os.path.isfile(combined_results_file):
 results = pd.read_pickle(combined_results_file)
 
 sb.set(font_scale=1.5)
-h = sb.barplot(data=pd.melt(results), x="Condition", y="value", hue="Feature type", palette=sb.cubehelix_palette(len(conditions)))
+h = sb.barplot(data=pd.melt(results), x="Condition", y="value", hue="Feature type", palette=sb.cubehelix_palette(len(metrics)))
 h.set_ylabel('Decoding accuracy')
 sb.plt.savefig(os.path.join(fig_dir, 'decoding_accuracy.pdf'))
