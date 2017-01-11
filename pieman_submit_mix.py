@@ -18,13 +18,13 @@ conditions = set(data.keys()) - set(ignore_keys)
 
 n_iterations = 100
 
-job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pieman_barplot_cruncher_baseline.py')
+job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pieman_cruncher_mix.py')
 job_commands = list()
 job_names = list()
 for c in conditions:
     for i in np.arange(n_iterations):
         job_commands.append(job_script + " " + str(i) + " " + c)
-        job_names.append('pieman_barplot_baseline_' + c + "_iter" + str(i) + '.sh')
+        job_names.append('pieman_barplot_mix_' + c + "_iter" + str(i) + '.sh')
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
 assert(len(job_commands) == len(job_names))
