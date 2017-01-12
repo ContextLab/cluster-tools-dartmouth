@@ -18,7 +18,7 @@ save_file = os.path.join(config['resultsdir'], 'voxel_results_' + condition + '_
 if not os.path.isfile(save_file):
     # xval_groups = np.load(os.path.join(config['resultsdir'], 'xval_folds.npz'))['xval_groups']
     # params = np.load(os.path.join(config['resultsdir'], 'best_parameters.npz'))
-    fnames = glob.glob(os.path.join(os.path.join(config['datadir'], 'npy_files'), condition + '*.npy'))
+    fnames = glob.glob(os.path.join(os.path.join(config['datadir'], 'npy_files'), '*.npy'))
 
     data = np.array(map(load_helper, fnames))
 
