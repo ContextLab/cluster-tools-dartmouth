@@ -44,3 +44,5 @@ for i in np.arange(len(features)):
             next = ttest(a, b)
             t[k, features[i]][features[j]] = next[0]
             p[k, features[i]][features[j]] = next[1]
+
+x = results
