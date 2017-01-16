@@ -7,21 +7,14 @@ import scipy.io as sio
 from config import config
 from isfc import timepoint_decoder
 
-iternum = int(sys.argv[1])
-condition = sys.argv[2]
-save_file = os.path.join(config['resultsdir'], 'opt_results_' + condition + '_' + str(iternum) + '.npz')
+condition = sys.argv[1]
+iternum = int(sys.argv[2])
+mu = float(sys.argv[3])
+save_file = os.path.join(config['resultsdir'], 'opt_results_' + condition + '_' + str(iternum) + '_' +str(mu) + '.npz')
 
 if not os.path.isfile(save_file):
-    xval_groups = np.load(os.path.join(config['resultsdir'], 'xval_folds.npz'))['xval_groups']
-    params = np.load(os.path.join(config['resultsdir'], 'best_parameters.npz'))
     data = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'))[condition][0]
 
-    if condition == "intact":
-        data = data[np.where(xval_groups != 0)]
-
-
-
-
-    results = timepoint_decoder(data, windowsize=params['windowlength'].tolist(), mu=params['mu'].tolist(), nfolds=2)
+    results = timepoint_decoder(data, windowsize=60, mu=mu, nfolds=2)
     np.savez(save_file, results=results)
 

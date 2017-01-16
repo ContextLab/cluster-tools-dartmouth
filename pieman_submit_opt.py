@@ -17,14 +17,17 @@ ignore_keys = ('__header__', '__globals__', '__version__')
 conditions = set(data.keys()) - set(ignore_keys)
 
 n_iterations = 100
+mudelta = 0.05
+mus = np.arange(0, 1 + mudelta, mudelta)
 
 job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pieman_cruncher_opt.py')
 job_commands = list()
 job_names = list()
 for c in conditions:
     for i in np.arange(n_iterations):
-        job_commands.append(job_script + " " + str(i) + " " + c)
-        job_names.append('pieman_barplot_' + c + "_iter" + str(i) + '.sh')
+        for m in mus:
+            job_commands.append(job_script + " " + c + " " + str(i) + " " + str(m))
+            job_names.append('pieman_opt_' + c + "_" + str(i) + "_" + str(m) + '.sh')
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
 assert(len(job_commands) == len(job_names))
