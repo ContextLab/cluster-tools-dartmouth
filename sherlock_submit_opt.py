@@ -16,8 +16,8 @@ data = sio.loadmat(os.path.join(config['datadir'], 'sherlock_data.mat'))
 ignore_keys = ('__header__', '__globals__', '__version__')
 conditions = set(data.keys()) - set(ignore_keys)
 
-n_iterations = 1
-mudelta = 0.5
+n_iterations = 100
+mudelta = 0.05
 mus = np.arange(0, 1 + mudelta, mudelta)
 
 job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'sherlock_cruncher_opt.py')
