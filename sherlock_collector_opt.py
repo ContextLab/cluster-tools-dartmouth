@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from config import config
+from config2 import config
 import os
 from glob import glob as lsdir
 import seaborn as sb
@@ -24,7 +24,7 @@ def parse_mu(fname, condition):
 
 fig_dir = os.path.join(config['resultsdir'], 'figs')
 
-data = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'))
+data = sio.loadmat(os.path.join(config['datadir'], 'sherlock_data.mat'))
 ignore_keys = ('__header__', '__globals__', '__version__')
 conditions = set(data.keys()) - set(ignore_keys)
 
@@ -58,4 +58,4 @@ fig = sb.barplot(x="mu", y="value", hue="conditions", data=pd.melt(results))
 fig.set_aspect(50)
 fig.set(xlabel='$\mu$', ylabel='Decoding accuracy')
 sb.plt.ylim(0, 0.2)
-sb.plt.savefig(os.path.join(fig_dir, 'pieman_decoding_accuracy_by_mu.pdf'))
+sb.plt.savefig(os.path.join(fig_dir, 'sherlock_decoding_accuracy_by_mu.pdf'))
