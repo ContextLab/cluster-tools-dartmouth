@@ -4,7 +4,7 @@ import os
 import sys
 import numpy as np
 import scipy.io as sio
-from config import config
+from config2 import config
 from isfc import timepoint_decoder
 
 iternum = int(sys.argv[1])
