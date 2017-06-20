@@ -10,7 +10,7 @@ from subprocess import call
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 import numpy as np
 import scipy.io as sio
-from config import config
+from config2 import config
 
 data = sio.loadmat(os.path.join(config['datadir'], 'sherlock_ica50.mat'))
 ignore_keys = ('__header__', '__globals__', '__version__')

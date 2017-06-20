@@ -12,9 +12,9 @@ if (socket.gethostname() == 'vertex') or (socket.gethostname() == 'vertex.kiewit
     config['startdir'] = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))  # directory to start the job in
     config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_local.sh')
 else:
-    config['datadir'] = '/isi/rctest/jmanning/sherlock/'
-    config['workingdir'] = '/isi/rctest/jmanning/sherlock_analysis/'
-    config['startdir'] = '/isi/rctest/jmanning/'
+    config['datadir'] = '/idata/cdl/data/fMRI/sherlock/'
+    config['workingdir'] = '/idata/cdl/jmanning/sherlock_analysis/'
+    config['startdir'] = '/idata/cdl/jmanning/'
     config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_cluster.sh')
 
 config['scriptdir'] = os.path.join(config['workingdir'], 'scripts')
