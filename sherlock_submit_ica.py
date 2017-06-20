@@ -12,7 +12,7 @@ import numpy as np
 import scipy.io as sio
 from config import config
 
-data = sio.loadmat(os.path.join(config['datadir'], 'sherlock_data.mat'))
+data = sio.loadmat(os.path.join(config['datadir'], 'sherlock_ica50.mat'))
 ignore_keys = ('__header__', '__globals__', '__version__')
 conditions = set(data.keys()) - set(ignore_keys)
 
