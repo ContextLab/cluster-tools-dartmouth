@@ -15,7 +15,7 @@ data = sio.loadmat(os.path.join(config['datadir'], 'pieman_data.mat'))
 ignore_keys = ('__header__', '__globals__', '__version__')
 conditions = set(data.keys()) - set(ignore_keys)
 
-features = ('voxel', 'baseline', 'isfc', 'mix')
+features = ('voxel', 'atlas', 'baseline', 'isfc', 'mix', 'ica50')
 iterations = []
 for c in conditions:
     next_files = lsdir(os.path.join(config['resultsdir'], features[0] + '_results_' + c + '*.npz'))

@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from config import config
+from config2 import config
 import os
 from glob import glob as lsdir
 import seaborn as sb
@@ -15,16 +15,14 @@ def parse_fname(fname, condition):
 
 fig_dir = os.path.join(config['resultsdir'], 'figs')
 
-data = sio.loadmat(os.path.join(config['datadir'], 'sherlock_data.mat'))
-ignore_keys = ('__header__', '__globals__', '__version__')
-conditions = set(data.keys()) - set(ignore_keys)
+conditions = {'HTFA'}
 
 iterations = []
 for c in conditions:
     next_files = lsdir(os.path.join(config['resultsdir'], 'baseline_results_' + c + '*.npz'))
     iterations = np.union1d(iterations, map(parse_fname, next_files, [c] * len(next_files)))
 
-metrics = ('voxel', 'baseline', 'isfc', 'mix')
+metrics = ('voxel', 'atlas', 'baseline', 'isfc', 'mix', 'ica50')
 columns = pd.MultiIndex.from_product([conditions, metrics], names=['Condition', 'Feature type'])
 
 combined_results_file = os.path.join(config['resultsdir'], 'combined_results.pkl')
@@ -37,7 +35,13 @@ if not os.path.isfile(combined_results_file):
 
         accuracies = pd.DataFrame(index=iterations, columns=conditions)
         for c in conditions:
-            results[c, m] = next_results[c]['accuracy']
+            try:
+                results[c, m] = next_results[c]['accuracy']
+            except: #deal with atlas results
+                try:
+                    results[c, m] = next_results['movie']['accuracy']
+                except:
+                    results[c, m] = next_results['ICA']['accuracy']
 
     results.to_pickle(combined_results_file)
 
