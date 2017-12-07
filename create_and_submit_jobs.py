@@ -113,7 +113,7 @@ for n, c in zip(job_names, job_commands):
         if lock(next_lockfile):
             next_job = create_job(n, c)
 
-            if (socket.gethostname() == 'discovery') or (socket.gethostname() == 'ndoli'):
+            if (socket.gethostname() == 'discovery.hpcc.dartmouth.edu') or (socket.gethostname() == 'ndoli.hpcc.dartmouth.edu'):
                 submit_command = 'echo "[SUBMITTING JOB: ' + next_job + ']"; qsub'
             else:
                 submit_command = 'echo "[RUNNING JOB: ' + next_job + ']"; sh'
