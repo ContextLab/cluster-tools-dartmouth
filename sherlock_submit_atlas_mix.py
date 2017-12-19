@@ -21,7 +21,7 @@ job_names = list()
 for c in conditions:
     for i in np.arange(n_iterations):
         job_commands.append(job_script + " " + str(i) + " " + c)
-        job_names.append('sherlock_atlas_' + c + "_iter" + str(i) + '.sh')
+        job_names.append('sherlock_atlas_mix_' + c + "_iter" + str(i) + '.sh')
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
 assert(len(job_commands) == len(job_names))
@@ -119,7 +119,7 @@ for n, c in zip(job_names, job_commands):
         if lock(next_lockfile):
             next_job = create_job(n, c)
 
-            if ('discovery' in socket.gethostname()) or (socket.gethostname() == 'ndoli'):
+            if ('discovery' in socket.gethostname()) or ('ndoli' in socket.gethostname()):
                 submit_command = 'echo "[SUBMITTING JOB: ' + next_job + ']"; qsub'
             else:
                 submit_command = 'echo "[RUNNING JOB: ' + next_job + ']"; sh'
