@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 # create a bunch of job scripts
-from config import config
+from eventseg_config import config
 from subprocess import call
 import os
 import socket
@@ -140,7 +140,7 @@ for n, c in zip(job_names, job_commands):
             next_job = create_job(n, c)
 
             if (socket.gethostname() == 'discovery') or (socket.gethostname() == 'ndoli'):
-                submit_command = 'echo "[SUBMITTING JOB: ' + next_job + ']"; qsub'
+                submit_command = 'echo "[SUBMITTING JOB: ' + next_job + ']"; mksub'
             else:
                 submit_command = 'echo "[RUNNING JOB: ' + next_job + ']"; sh'
 
