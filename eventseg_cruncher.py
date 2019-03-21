@@ -5,7 +5,7 @@ import os
 import pickle
 import numpy as np
 import brainiak.eventseg.event as event
-from config import config
+from eventseg_config import config
 
 filepath, k = sys.argv[1], sys.argv[2]
 dir, f_name  = os.path.split(filepath)
