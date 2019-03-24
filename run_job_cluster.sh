@@ -20,19 +20,13 @@
 cd <config['startdir']>
 
 echo ----
-# echo LOADING PYTHON 2.7.11
-# module load python/2.7.11
 
 echo ACTIVATING BRAIN DYNAMICS MODEL VIRTUAL ENVIRONMENT
 source activate memdyn
 
-# echo UNLOADING PYTHON 2.7.11
-# module unload python/2.7.11
-
-echo PYTHON PATH CONFIGURATION COMPLETE
 echo ----
 
 # run the job
 <config['cmd_wrapper']> <job_command> #note: job_command is reserved for the job command; it should not be specified in config.py
 
-source deactivate hobd
+source deactivate memdyn
