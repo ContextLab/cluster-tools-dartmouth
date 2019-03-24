@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 # create a bunch of job scripts
-from config import config
+from eventseg_config import config
 from subprocess import call
 import os
 import socket
@@ -10,12 +10,38 @@ import datetime as dt
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
+import sys
+
+n_ks = sys.argv[1]
+
 # each job command should be formatted as a string
-job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test.py')
-job_commands = map(lambda x: x[0]+" "+str(x[1]), zip([job_script]*10, range(10)))
+job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg_cruncher.py')
+
+job_commmands = list()
+job_names = list()
+
+for root, dirs, files in os.walk(config['datadir']):
+    for file in [f for f in files if f.startswith('debug')]:
+        filepath = os.path.join(root,file)
+        rectype = os.path.split(root)[-1]
+        turkid = os.path.splitext(file)[0]
+
+        subjdir = os.path.join(config['resultsdir'], rectype, turkid)
+        if not os.path.isdir(subjdir):
+            os.makedirs(subjdir, exist_ok=True)
+
+        for k in range(2,int(n_ks)+1):
+            if not os.path.isfile(os.path.join(subjdir,'k'+str(k)+'.npy')):
+                job_commands.append(' '.join([job_script, filepath, k]))
+                job_names.append('segment_' + turkid + '_' + rectype + '_k' + str(k) + '.sh')
+
+
+
+
+## job_commands = map(lambda x: x[0]+" "+str(x[1]), zip([job_script]*10, range(10)))
 
 # job_names should specify the file name of each script (as a list, of the same length as job_commands)
-job_names = map(lambda x: str(x)+'.sh', range(len(job_commands)))
+## job_names = map(lambda x: str(x)+'.sh', range(len(job_commands)))
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
 assert(len(job_commands) == len(job_names))
@@ -114,7 +140,7 @@ for n, c in zip(job_names, job_commands):
             next_job = create_job(n, c)
 
             if (socket.gethostname() == 'discovery') or (socket.gethostname() == 'ndoli'):
-                submit_command = 'echo "[SUBMITTING JOB: ' + next_job + ']"; qsub'
+                submit_command = 'echo "[SUBMITTING JOB: ' + next_job + ']"; mksub'
             else:
                 submit_command = 'echo "[RUNNING JOB: ' + next_job + ']"; sh'
 
