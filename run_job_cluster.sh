@@ -20,14 +20,14 @@
 cd <config['startdir']>
 
 echo ----
-echo LOADING PYTHON 2.7.11
-module load python/2.7.11
+# echo LOADING PYTHON 2.7.11
+# module load python/2.7.11
 
 echo ACTIVATING BRAIN DYNAMICS MODEL VIRTUAL ENVIRONMENT
-source activate hobd
+source activate memdyn
 
-echo UNLOADING PYTHON 2.7.11
-module unload python/2.7.11
+# echo UNLOADING PYTHON 2.7.11
+# module unload python/2.7.11
 
 echo PYTHON PATH CONFIGURATION COMPLETE
 echo ----
