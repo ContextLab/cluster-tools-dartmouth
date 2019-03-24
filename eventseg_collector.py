@@ -1,5 +1,3 @@
 #!/usr/bin/python
 
-from config import config
-
-#TODO: write analysis here
+from eventseg_config import config
