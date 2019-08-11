@@ -14,7 +14,7 @@ trajectory = np.load(filepath)
 savepath = os.path.join(config['resultsdir'], rectype, os.path.splitext(f_name)[0], 'k'+k+'.npy')
 
 if not os.path.isfile(savepath):
-    ev = event.EventSegment(k)
+    ev = event.EventSegment(int(k))
     ev.fit(trajectory)
 
     np.save(savepath, ev.segments_[0])

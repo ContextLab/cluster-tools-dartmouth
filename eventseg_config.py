@@ -9,14 +9,14 @@ config = dict()
 #add additional checks for your local machine here...
 # ******** check kiewit hostname from eduroam ********
 if (socket.gethostname() == 'Paxtons-MacBook-Pro') or (socket.gethostname() == 'Paxtons-MacBook-Pro.kiewit.dartmouth.edu') or (socket.gethostname() == 'Paxtons-MacBook-Pro.local'):
-    config['datadir'] = '/Users/paxtonfitzpatrick/Documents/Dartmouth/Thesis/memory-dynamics/data/models/participants/trajectories')
+    config['datadir'] = '/Users/paxtonfitzpatrick/Documents/Dartmouth/Thesis/memory-dynamics/data/models/participants/trajectories'
     config['workingdir'] = config['datadir']
     config['startdir'] = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))  # directory to start the job in
     config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_local.sh')
 else:
-    config['datadir'] = os.path.join('/dartfs/rc/lab/D/DBIC/CDL/pfitzpatrick/eventseg', 'trajectories')
-    config['workingdir'] = '/dartfs/rc/lab/D/DBIC/CDL/pfitzpatrick/eventseg/'
-    config['startdir'] = '/dartfs/rc/lab/D/DBIC/CDL/pfitzpatrick'
+    config['datadir'] = os.path.join('/dartfs/rc/lab/D/DBIC/CDL/f0028ph/eventseg', 'trajectories')
+    config['workingdir'] = '/dartfs/rc/lab/D/DBIC/CDL/f0028ph/eventseg/cluster-scripts'
+    config['startdir'] = '/dartfs/rc/lab/D/DBIC/CDL/f0028ph/eventseg/'
     config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_cluster.sh')
 
 config['scriptdir'] = os.path.join(config['workingdir'], 'scripts')

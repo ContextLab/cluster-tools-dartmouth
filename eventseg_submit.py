@@ -17,7 +17,7 @@ n_ks = sys.argv[1]
 # each job command should be formatted as a string
 job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg_cruncher.py')
 
-job_commmands = list()
+job_commands = list()
 job_names = list()
 
 for root, dirs, files in os.walk(config['datadir']):
@@ -32,7 +32,7 @@ for root, dirs, files in os.walk(config['datadir']):
 
         for k in range(2,int(n_ks)+1):
             if not os.path.isfile(os.path.join(subjdir,'k'+str(k)+'.npy')):
-                job_commands.append(' '.join([job_script, filepath, k]))
+                job_commands.append(' '.join([job_script, filepath, str(k)]))
                 job_names.append('segment_' + turkid + '_' + rectype + '_k' + str(k) + '.sh')
 
 
