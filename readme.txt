@@ -1,8 +1,8 @@
-SuperEEG analysis tools
+Adapted for narrative_complexity (github.com.contextlab/narrative_complexity) hackathon project for the 2019 MIND Summer School
 
 To run the main analysis, use:
 
-python supereeg_submit.py
+python model_scripts_submit.py
 
 If run on Discovery, it'll submit a batch of jobs to run in parallel.  If run on a personal computer it'll run each job
 in sequence.
@@ -60,6 +60,9 @@ you will need to specify the following:
                  "python", "sh", etc.
   + modules: A list of modules that need to be loaded prior to executing your
              job.
+
+******** NOTE ********
+Steps below are outdated
 
 2.) create_and_submit_jobs.py.  This script is what you'll run to actually create
 your job scripts and submit (or run) them.  You'll want to modify the code in the
