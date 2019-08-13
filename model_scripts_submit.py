@@ -21,7 +21,7 @@ lda_dest = os.path.join(config['datadir'], 'fit_lda_t100.joblib')
 dl(cv_id, cv_dest)
 dl(lda_id, lda_dest)
 
-job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg_cruncher.py')
+job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'model_scripts_cruncher.py')
 
 for output in ['trajectories', 'corrmats']:
     if not os.path.isdir(os.path.join(config['datadir'], output)):
