@@ -27,9 +27,9 @@ config['resultsdir'] = os.path.join(config['workingdir'], 'results')
 # runtime options
 config['jobname'] = "model_script"  # default job name
 config['q'] = "largeq"  # options: default, test, largeq
-config['nnodes'] = 10  # how many nodes to use for this one job
-config['ppn'] = 4  # how many processors to use for this one job (assume 4GB of RAM per processor)
-config['walltime'] = '20:00:00'  # maximum runtime, in h:MM:SS
+config['nnodes'] = 1  # how many nodes to use for this one job
+config['ppn'] = 1  # how many processors to use for this one job (assume 4GB of RAM per processor)
+config['walltime'] = '1:00:00'  # maximum runtime, in h:MM:SS
 config['cmd_wrapper'] = "python"  # replace with actual command wrapper (e.g. matlab, python, etc.)
 
 #extra options
