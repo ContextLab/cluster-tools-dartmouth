@@ -10,71 +10,49 @@ import datetime as dt
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
+import pandas as pd
+from helpers import download_from_google_drive as dl
+
+# download pre-trained CountVectorizer and LatentDirichletAllocation models
+cv_id = '1qD27Os44vojkC0UUf2cYlDZ5XytotGbK'
+cv_dest = os.path.join(config['datadir'], 'fit_cv.joblib')
+lda_id = '1iu7X84Hd1y6Vhz8xtG2nZZ_OSolkjz9g'
+lda_dest = os.path.join(config['datadir'], 'fit_lda_t100.joblib')
+dl(cv_id, cv_dest)
+dl(lda_id, lda_dest)
+
+job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'model_scripts_cruncher.py')
+
+for output in ['trajectories', 'corrmats']:
+    if not os.path.isdir(os.path.join(config['datadir'], output)):
+        os.mkdir(os.path.join(config['datadir'], output))
+
+# load in and clean data
+data_df = pd.read_csv(os.path.join(config['datadir'], 'data.csv'))
+data_df.dropna(subset=['script'], inplace=True)
+data_df.drop_duplicates(subset=['title'], inplace=True)
 
 job_commands = list()
 job_names = list()
-job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg_cruncher.py')
 
-segments_dir = os.path.join(config['datadir'], 'segments')
-eventseg_models_dir = os.path.join(config['datadir'], 'eventseg_models')
+for _, row in data_df.iterrows():
+    job_commands.append(f'{job_script} {row.id}')
+    job_names.append(f'transform_{row.title}.sh')
 
-try:
-    os.mkdir(segments_dir)
-except FileExistsError:
-    pass
-
-try:
-    os.mkdir(eventseg_models_dir)
-except FileExistsError:
-    pass
-
-traj_dir = os.path.join(config['datadir'], 'trajectories')
-script_names = [f.rstrip('_traj.npy') for f in os.listdir(traj_dir) if f.endswith('traj.npy')]
-
-for s in script_names:
-    scriptseg_dir = os.path.join(segments_dir, s)
-    script_eventsegs_dir = os.path.join(eventseg_models_dir, s)
-    try:
-        os.mkdir(scriptseg_dir)
-    except FileExistsError:
-        pass
-    try:
-        os.mkdir(script_eventsegs_dir)
-    except FileExistsError:
-        pass
-
-    for k in range(2, 75):
-        job_commands.append(f'{job_script} {s} {str(k)}')
-        job_names.append(f'segment_{s}_k{str(k)}')
-
-# import pandas as pd
-# from helpers import download_from_google_drive as dl
+# for root, dirs, files in os.walk(config['datadir']):
+#     for file in [f for f in files if f.startswith('debug')]:
+#         filepath = os.path.join(root,file)
+#         rectype = os.path.split(root)[-1]
+#         turkid = os.path.splitext(file)[0]
 #
-# # download pre-trained CountVectorizer and LatentDirichletAllocation models
-# cv_id = '1qD27Os44vojkC0UUf2cYlDZ5XytotGbK'
-# cv_dest = os.path.join(config['datadir'], 'fit_cv.joblib')
-# lda_id = '1iu7X84Hd1y6Vhz8xtG2nZZ_OSolkjz9g'
-# lda_dest = os.path.join(config['datadir'], 'fit_lda_t100.joblib')
-# dl(cv_id, cv_dest)
-# dl(lda_id, lda_dest)
+#         subjdir = os.path.join(config['resultsdir'], rectype, turkid)
+#         if not os.path.isdir(subjdir):
+#             os.makedirs(subjdir, exist_ok=True)
 #
-# job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg_cruncher.py')
-#
-# for output in ['trajectories', 'corrmats']:
-#     if not os.path.isdir(os.path.join(config['datadir'], output)):
-#         os.mkdir(os.path.join(config['datadir'], output))
-#
-# # load in and clean data
-# data_df = pd.read_csv(os.path.join(config['datadir'], 'data.csv'))
-# data_df.dropna(subset=['script'], inplace=True)
-# data_df.drop_duplicates(subset=['title'], inplace=True)
-#
-# job_commands = list()
-# job_names = list()
-#
-# for _, row in data_df.iterrows():
-#     job_commands.append(f'{job_script} {row.id}')
-#     job_names.append(f'transform_{row.title}.sh')
+#         for k in range(2,int(n_ks)+1):
+#             if not os.path.isfile(os.path.join(subjdir,'k'+str(k)+'.npy')):
+#                 job_commands.append(' '.join([job_script, filepath, str(k)]))
+#                 job_names.append('segment_' + turkid + '_' + rectype + '_k' + str(k) + '.sh')
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
