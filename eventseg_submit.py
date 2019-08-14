@@ -10,7 +10,7 @@ import datetime as dt
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
-k_range = list(range(2,75))
+k_range = list(range(2,76))
 
 # split each script into 3 jobs, segmentation runtime increases with k
 # first does first 50% of k's, second does middle 30%, third does final 20%
@@ -23,8 +23,9 @@ job_commands = list()
 job_names = list()
 job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg_cruncher.py')
 
-segments_dir = os.path.join(config['datadir'], 'segments')
+segments_dir = os.path.join(config['datadir'], 'events')
 eventseg_models_dir = os.path.join(config['datadir'], 'eventseg_models')
+event_boundaries_dir = os.path.join(config['datadir'], 'event_boundaries')
 
 if not os.path.isdir(segments_dir):
     os.mkdir(segments_dir)
@@ -32,24 +33,30 @@ if not os.path.isdir(segments_dir):
 if not os.path.isdir(eventseg_models_dir):
     os.mkdir(eventseg_models_dir)
 
+if not os.path.isdir(event_boundaries_dir):
+    os.mkdir(event_boundaries_dir)
+
 traj_dir = os.path.join(config['datadir'], 'trajectories')
 script_names = [f.rstrip('_traj.npy') for f in os.listdir(traj_dir) if f.endswith('traj.npy')]
 
 for s in script_names:
     scriptseg_dir = os.path.join(segments_dir, s)
     script_eventsegs_dir = os.path.join(eventseg_models_dir, s)
+    script_boundaries_dir = os.path.join(event_boundaries_dir, s)
     if not os.path.isdir(scriptseg_dir)
         os.mkdir(scriptseg_dir)
     if not os.path.isdir(script_eventsegs_dir)
         os.mkdir(script_eventsegs_dir)
+    if not os.path.isdir(script_boundaries_dir)
+        os.mkdir(script_boundaries_dir)
 
-    job_commands.append(f'{job_script} {s} {start} {div1}')
+    job_commands.append(f'{job_script} {s} {start} {div1+2}')
     job_names.append(f'segment_{s}_1')
 
-    job_commands.append(f'{job_script} {s} {div1} {div2}')
+    job_commands.append(f'{job_script} {s} {div1+2} {div2+2}')
     job_names.append(f'segment_{s}_2')
 
-    job_commands.append(f'{job_script} {s} {div2} {stop}')
+    job_commands.append(f'{job_script} {s} {div2+2} {stop+1}')
     job_names.append(f'segment_{s}_3')
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
