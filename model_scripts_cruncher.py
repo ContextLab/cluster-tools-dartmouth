@@ -5,10 +5,10 @@ import joblib
 import numpy as np
 import pandas as pd
 from scipy.signal import resample
-from eventseg_config import config
+from model_scripts_config import config
 from helpers import *
 
-id = sys.argv[1]
+id = int(sys.argv[1])
 wsize = 50
 
 # load only single row to save time & memory
@@ -26,7 +26,7 @@ if len(clean_script) < 8528:
 cv = joblib.load(os.path.join(config['datadir'], 'fit_cv.joblib'))
 lda = joblib.load(os.path.join(config['datadir'], 'fit_lda_t100.joblib'))
 
-sentences = cleaned.split('.')
+sentences = clean_script.split('.')
 windows = []
 for ix, _ in enumerate(sentences):
     windows.append(' '.join(sentences[ix:ix+wsize]))
@@ -36,5 +36,5 @@ script_tf = cv.transform(windows)
 script_traj = resample(lda.transform(script_tf), 1000)
 corrmat = np.corrcoef(script_traj)
 
-np.save(os.path.join(config['datadir'], 'trajectories', f'{name}_traj.npy'), script_traj)
-np.save(os.path.join(config['datadir'], 'corrmats', f'{name}_corrmat.npy'), corrmat)
+np.save(os.path.join(config['datadir'], 'trajectories', f'{name.replace(" ","-")}_traj.npy'), script_traj)
+np.save(os.path.join(config['datadir'], 'corrmats', f'{name.replace(" ","-")}_corrmat.npy'), corrmat)
