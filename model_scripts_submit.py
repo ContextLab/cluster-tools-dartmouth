@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 # create a bunch of job scripts
-from eventseg_config import config
+from model_scripts_config import config
 from subprocess import call
 import os
 import socket
@@ -18,8 +18,10 @@ cv_id = '1qD27Os44vojkC0UUf2cYlDZ5XytotGbK'
 cv_dest = os.path.join(config['datadir'], 'fit_cv.joblib')
 lda_id = '1iu7X84Hd1y6Vhz8xtG2nZZ_OSolkjz9g'
 lda_dest = os.path.join(config['datadir'], 'fit_lda_t100.joblib')
-dl(cv_id, cv_dest)
-dl(lda_id, lda_dest)
+if not os.path.isfile(cv_dest):
+    dl(cv_id, cv_dest)
+if not os.path.isfile(lda_dest):
+    dl(lda_id, lda_dest)
 
 job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'model_scripts_cruncher.py')
 
@@ -37,7 +39,7 @@ job_names = list()
 
 for _, row in data_df.iterrows():
     job_commands.append(f'{job_script} {row.id}')
-    job_names.append(f'transform_{row.title}.sh')
+    job_names.append(f'transform_{row.title.replace(' ', '-')}.sh')
 
 # for root, dirs, files in os.walk(config['datadir']):
 #     for file in [f for f in files if f.startswith('debug')]:
@@ -152,7 +154,7 @@ for n, c in zip(job_names, job_commands):
         if lock(next_lockfile):
             next_job = create_job(n, c)
 
-            if (socket.gethostname() == 'discovery') or (socket.gethostname() == 'ndoli'):
+            if ('discovery' in socket.gethostname()) or ('ndoli' in socket.gethostname()):
                 submit_command = 'echo "[SUBMITTING JOB: ' + next_job + ']"; mksub'
             else:
                 submit_command = 'echo "[RUNNING JOB: ' + next_job + ']"; sh'
