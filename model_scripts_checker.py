@@ -2,11 +2,13 @@
 
 import os
 import subprocess
+import traceback
 import pandas as pd
 from helpers import cleanup_text, wipe_formatting
 
 data = pd.read_csv(os.path.join(config['datadir'], 'data.csv')
 
+errors = dict()
 for title in data.title:
     t = title.replace(' ','-')
     job = f'scripts/transform_{t}.sh'
@@ -17,3 +19,9 @@ for title in data.title:
             subprocess.call(job_cmd + " " + job, shell=True)
         except Exception as e:
             print(e)
+            errors[title] = traceback.format_exc(e)
+
+if errors:
+    with open('output_errors.txt', 'w') as f:
+        for script, error in errors:
+            f.write(f'{script}:\n\t{error}\n{"-"*20}\n')
