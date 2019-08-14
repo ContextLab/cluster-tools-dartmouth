@@ -10,6 +10,14 @@ import datetime as dt
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
+k_range = list(range(2,75))
+
+# split each script into 3 jobs, segmentation runtime increases with k
+# first does first 50% of k's, second does middle 30%, third does final 20%
+start = k_range[0]
+div1 = len(k_range)//2
+div2 = int(len(k_range)*.8)
+stop = k_range[-1]
 
 job_commands = list()
 job_names = list()
@@ -18,15 +26,11 @@ job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg
 segments_dir = os.path.join(config['datadir'], 'segments')
 eventseg_models_dir = os.path.join(config['datadir'], 'eventseg_models')
 
-try:
+if not os.path.isdir(segments_dir):
     os.mkdir(segments_dir)
-except FileExistsError:
-    pass
 
-try:
+if not os.path.isdir(eventseg_models_dir):
     os.mkdir(eventseg_models_dir)
-except FileExistsError:
-    pass
 
 traj_dir = os.path.join(config['datadir'], 'trajectories')
 script_names = [f.rstrip('_traj.npy') for f in os.listdir(traj_dir) if f.endswith('traj.npy')]
@@ -34,48 +38,19 @@ script_names = [f.rstrip('_traj.npy') for f in os.listdir(traj_dir) if f.endswit
 for s in script_names:
     scriptseg_dir = os.path.join(segments_dir, s)
     script_eventsegs_dir = os.path.join(eventseg_models_dir, s)
-    try:
+    if not os.path.isdir(scriptseg_dir)
         os.mkdir(scriptseg_dir)
-    except FileExistsError:
-        pass
-    try:
+    if not os.path.isdir(script_eventsegs_dir)
         os.mkdir(script_eventsegs_dir)
-    except FileExistsError:
-        pass
 
-    for k in range(2, 75):
-        job_commands.append(f'{job_script} {s} {str(k)}')
-        job_names.append(f'segment_{s}_k{str(k)}')
+    job_commands.append(f'{job_script} {s} {start} {div1}')
+    job_names.append(f'segment_{s}_1')
 
-# import pandas as pd
-# from helpers import download_from_google_drive as dl
-#
-# # download pre-trained CountVectorizer and LatentDirichletAllocation models
-# cv_id = '1qD27Os44vojkC0UUf2cYlDZ5XytotGbK'
-# cv_dest = os.path.join(config['datadir'], 'fit_cv.joblib')
-# lda_id = '1iu7X84Hd1y6Vhz8xtG2nZZ_OSolkjz9g'
-# lda_dest = os.path.join(config['datadir'], 'fit_lda_t100.joblib')
-# dl(cv_id, cv_dest)
-# dl(lda_id, lda_dest)
-#
-# job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg_cruncher.py')
-#
-# for output in ['trajectories', 'corrmats']:
-#     if not os.path.isdir(os.path.join(config['datadir'], output)):
-#         os.mkdir(os.path.join(config['datadir'], output))
-#
-# # load in and clean data
-# data_df = pd.read_csv(os.path.join(config['datadir'], 'data.csv'))
-# data_df.dropna(subset=['script'], inplace=True)
-# data_df.drop_duplicates(subset=['title'], inplace=True)
-#
-# job_commands = list()
-# job_names = list()
-#
-# for _, row in data_df.iterrows():
-#     job_commands.append(f'{job_script} {row.id}')
-#     job_names.append(f'transform_{row.title}.sh')
+    job_commands.append(f'{job_script} {s} {div1} {div2}')
+    job_names.append(f'segment_{s}_2')
 
+    job_commands.append(f'{job_script} {s} {div2} {stop}')
+    job_names.append(f'segment_{s}_3')
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
@@ -174,7 +149,7 @@ for n, c in zip(job_names, job_commands):
         if lock(next_lockfile):
             next_job = create_job(n, c)
 
-            if (socket.gethostname() == 'discovery') or (socket.gethostname() == 'ndoli'):
+            if ('discovery' in socket.gethostname()) or ('ndoli' in socket.gethostname()):
                 submit_command = 'echo "[SUBMITTING JOB: ' + next_job + ']"; mksub'
             else:
                 submit_command = 'echo "[RUNNING JOB: ' + next_job + ']"; sh'
