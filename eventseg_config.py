@@ -16,8 +16,8 @@ if ('local' in hostname) or ('paxton' in hostname) or ('vpn' in hostname):
     config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_local.sh')
 else:
     config['datadir'] = '/dartfs/rc/lab/D/DBIC/CDL/f0028ph/MIND-narrative-modeling/data/'
-    config['startdir'] = '/dartfs/rc/lab/D/DBIC/CDL/f0028ph/MIND-narrative-modeling'
-    config['workingdir'] = os.path.join(startdir, 'cluster-scripts')
+    config['startdir'] = '/dartfs/rc/lab/D/DBIC/CDL/f0028ph/MIND-narrative-modeling/'
+    config['workingdir'] = os.path.join(config['startdir'], 'cluster-scripts')
     config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_cluster.sh')
 
 config['scriptdir'] = os.path.join(config['workingdir'], 'scripts')

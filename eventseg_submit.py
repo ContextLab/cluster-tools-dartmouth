@@ -43,21 +43,25 @@ for s in script_names:
     scriptseg_dir = os.path.join(segments_dir, s)
     script_eventsegs_dir = os.path.join(eventseg_models_dir, s)
     script_boundaries_dir = os.path.join(event_boundaries_dir, s)
-    if not os.path.isdir(scriptseg_dir)
+    if not os.path.isdir(scriptseg_dir):
         os.mkdir(scriptseg_dir)
-    if not os.path.isdir(script_eventsegs_dir)
+    if not os.path.isdir(script_eventsegs_dir):
         os.mkdir(script_eventsegs_dir)
-    if not os.path.isdir(script_boundaries_dir)
+    if not os.path.isdir(script_boundaries_dir):
         os.mkdir(script_boundaries_dir)
 
-    job_commands.append(f'{job_script} {s} {start} {div1+2}')
-    job_names.append(f'segment_{s}_1')
+    if (len(os.listdir(scriptseg_dir)) < len(k_range)
+        or len(os.listdir(script_eventsegs_dir)) < len(k_range)
+        or len(os.listdir(script_boundaries_dir)) < len(k_range)):
 
-    job_commands.append(f'{job_script} {s} {div1+2} {div2+2}')
-    job_names.append(f'segment_{s}_2')
+        job_commands.append(f'{job_script} {s} {start} {div1+2}')
+        job_names.append(f'segment_{s}_1')
 
-    job_commands.append(f'{job_script} {s} {div2+2} {stop+1}')
-    job_names.append(f'segment_{s}_3')
+        job_commands.append(f'{job_script} {s} {div1+2} {div2+2}')
+        job_names.append(f'segment_{s}_2')
+
+        job_commands.append(f'{job_script} {s} {div2+2} {stop+1}')
+        job_names.append(f'segment_{s}_3')
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
