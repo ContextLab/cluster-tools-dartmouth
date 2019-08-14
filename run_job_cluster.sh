@@ -21,7 +21,8 @@ cd <config['startdir']>
 
 echo ----
 
-echo ACTIVATING BRAIN DYNAMICS MODEL VIRTUAL ENVIRONMENT
+echo ACTIVATING MEMORY DYNAMICS VIRTUAL ENVIRONMENT
+module load python
 source activate memdyn
 
 echo ----
@@ -29,4 +30,4 @@ echo ----
 # run the job
 <config['cmd_wrapper']> <job_command> #note: job_command is reserved for the job command; it should not be specified in config.py
 
-source deactivate memdyn
+conda deactivate
