@@ -1,16 +1,3 @@
-Adapted for narrative_complexity (github.com.contextlab/narrative_complexity) hackathon project for the 2019 MIND Summer School
-
-To run the main analysis, use:
-
-python model_scripts_submit.py
-
-If run on Discovery, it'll submit a batch of jobs to run in parallel.  If run on a personal computer it'll run each job
-in sequence.
-
-NOTE: jobs have not been implemented yet
-
-
-
 
 
 =======
