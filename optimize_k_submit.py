@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 # create a bunch of job scripts
-from eventseg_config import config
+from optimize_k_config import config
 from subprocess import call
 import os
 import socket
@@ -10,58 +10,27 @@ import datetime as dt
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
-k_range = list(range(2,76))
-
-# split each script into 3 jobs, segmentation runtime increases with k
-# first does first 50% of k's, second does middle 30%, third does final 20%
-start = k_range[0]
-div1 = len(k_range)//2
-div2 = int(len(k_range)*.8)
-stop = k_range[-1]
+import shutil
+import numpy as np
 
 job_commands = list()
 job_names = list()
-job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg_cruncher.py')
+job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'optimize_k_cruncher.py')
 
-segments_dir = os.path.join(config['datadir'], 'events')
-eventseg_models_dir = os.path.join(config['datadir'], 'eventseg_models')
-event_boundaries_dir = os.path.join(config['datadir'], 'event_boundaries')
 
-if not os.path.isdir(segments_dir):
-    os.mkdir(segments_dir)
+trajs_dir = os.path.join(config['datadir'], 'trajectories')
+optimized_dir = os.path.join(config['datadir'], 'optimized')
 
-if not os.path.isdir(eventseg_models_dir):
-    os.mkdir(eventseg_models_dir)
+if not os.path.isdir(optimized_dir):
+    os.mkdir(optimized_dir)
 
-if not os.path.isdir(event_boundaries_dir):
-    os.mkdir(event_boundaries_dir)
+n_total = len(os.listdir(trajs_dir))
 
-traj_dir = os.path.join(config['datadir'], 'trajectories')
-script_names = [f.rstrip('_traj.npy') for f in os.listdir(traj_dir) if f.endswith('traj.npy')]
+for i, traj_name in enumerate(os.listdir(trajs_dir)):
+    job_commands.append(f'{job_script} {traj_name}')
+    job_names.append(f'optimize_{traj_name}_{i}_{n_total}')
 
-for s in script_names:
-    scriptseg_dir = os.path.join(segments_dir, s)
-    script_eventsegs_dir = os.path.join(eventseg_models_dir, s)
-    script_boundaries_dir = os.path.join(event_boundaries_dir, s)
-    if not os.path.isdir(scriptseg_dir):
-        os.mkdir(scriptseg_dir)
-    if not os.path.isdir(script_eventsegs_dir):
-        os.mkdir(script_eventsegs_dir)
-    if not os.path.isdir(script_boundaries_dir):
-        os.mkdir(script_boundaries_dir)
 
-    if (len(os.listdir(scriptseg_dir)) < len(k_range)
-        or len(os.listdir(script_eventsegs_dir)) < len(k_range)
-        or len(os.listdir(script_boundaries_dir)) < len(k_range)):
-
-        job_commands.append(f'{job_script} {s} {start} {div1+2}')
-        job_names.append(f'segment_{s}_1')
-
-        job_commands.append(f'{job_script} {s} {div1+2} {div2+2}')
-        job_names.append(f'segment_{s}_2')
-
-        job_commands.append(f'{job_script} {s} {div2+2} {stop+1}')
-        job_names.append(f'segment_{s}_3')
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 

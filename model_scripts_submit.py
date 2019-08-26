@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 # create a bunch of job scripts
-from eventseg_config import config
+from model_scripts_config import config
 from subprocess import call
 import os
 import socket
@@ -10,58 +10,52 @@ import datetime as dt
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
-k_range = list(range(2,76))
+import pandas as pd
+from helpers import download_from_google_drive as dl
 
-# split each script into 3 jobs, segmentation runtime increases with k
-# first does first 50% of k's, second does middle 30%, third does final 20%
-start = k_range[0]
-div1 = len(k_range)//2
-div2 = int(len(k_range)*.8)
-stop = k_range[-1]
+# download pre-trained CountVectorizer and LatentDirichletAllocation models
+cv_id = '1qD27Os44vojkC0UUf2cYlDZ5XytotGbK'
+cv_dest = os.path.join(config['datadir'], 'fit_cv.joblib')
+lda_id = '1iu7X84Hd1y6Vhz8xtG2nZZ_OSolkjz9g'
+lda_dest = os.path.join(config['datadir'], 'fit_lda_t100.joblib')
+if not os.path.isfile(cv_dest):
+    dl(cv_id, cv_dest)
+if not os.path.isfile(lda_dest):
+    dl(lda_id, lda_dest)
+
+job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'model_scripts_cruncher.py')
+
+for output in ['trajectories', 'corrmats']:
+    if not os.path.isdir(os.path.join(config['datadir'], output)):
+        os.mkdir(os.path.join(config['datadir'], output))
+
+# load in and clean data
+data_df = pd.read_csv(os.path.join(config['datadir'], 'data.csv'))
+data_df.dropna(subset=['script'], inplace=True)
+data_df.drop_duplicates(subset=['title'], inplace=True)
 
 job_commands = list()
 job_names = list()
-job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg_cruncher.py')
 
-segments_dir = os.path.join(config['datadir'], 'events')
-eventseg_models_dir = os.path.join(config['datadir'], 'eventseg_models')
-event_boundaries_dir = os.path.join(config['datadir'], 'event_boundaries')
+for _, row in data_df.iterrows():
+    job_commands.append(f'{job_script} {row.id}')
+    job_names.append(f'transform_{row.title.replace(' ', '-')}.sh')
 
-if not os.path.isdir(segments_dir):
-    os.mkdir(segments_dir)
+# for root, dirs, files in os.walk(config['datadir']):
+#     for file in [f for f in files if f.startswith('debug')]:
+#         filepath = os.path.join(root,file)
+#         rectype = os.path.split(root)[-1]
+#         turkid = os.path.splitext(file)[0]
+#
+#         subjdir = os.path.join(config['resultsdir'], rectype, turkid)
+#         if not os.path.isdir(subjdir):
+#             os.makedirs(subjdir, exist_ok=True)
+#
+#         for k in range(2,int(n_ks)+1):
+#             if not os.path.isfile(os.path.join(subjdir,'k'+str(k)+'.npy')):
+#                 job_commands.append(' '.join([job_script, filepath, str(k)]))
+#                 job_names.append('segment_' + turkid + '_' + rectype + '_k' + str(k) + '.sh')
 
-if not os.path.isdir(eventseg_models_dir):
-    os.mkdir(eventseg_models_dir)
-
-if not os.path.isdir(event_boundaries_dir):
-    os.mkdir(event_boundaries_dir)
-
-traj_dir = os.path.join(config['datadir'], 'trajectories')
-script_names = [f.rstrip('_traj.npy') for f in os.listdir(traj_dir) if f.endswith('traj.npy')]
-
-for s in script_names:
-    scriptseg_dir = os.path.join(segments_dir, s)
-    script_eventsegs_dir = os.path.join(eventseg_models_dir, s)
-    script_boundaries_dir = os.path.join(event_boundaries_dir, s)
-    if not os.path.isdir(scriptseg_dir):
-        os.mkdir(scriptseg_dir)
-    if not os.path.isdir(script_eventsegs_dir):
-        os.mkdir(script_eventsegs_dir)
-    if not os.path.isdir(script_boundaries_dir):
-        os.mkdir(script_boundaries_dir)
-
-    if (len(os.listdir(scriptseg_dir)) < len(k_range)
-        or len(os.listdir(script_eventsegs_dir)) < len(k_range)
-        or len(os.listdir(script_boundaries_dir)) < len(k_range)):
-
-        job_commands.append(f'{job_script} {s} {start} {div1+2}')
-        job_names.append(f'segment_{s}_1')
-
-        job_commands.append(f'{job_script} {s} {div1+2} {div2+2}')
-        job_names.append(f'segment_{s}_2')
-
-        job_commands.append(f'{job_script} {s} {div2+2} {stop+1}')
-        job_names.append(f'segment_{s}_3')
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 

@@ -26,7 +26,7 @@ config['resultsdir'] = os.path.join(config['workingdir'], 'results')
 
 
 # runtime options
-config['jobname'] = "eventseg"  # default job name
+config['jobname'] = "model_script"  # default job name
 config['q'] = "largeq"  # options: default, test, largeq
 config['nnodes'] = 1  # how many nodes to use for this one job
 config['ppn'] = 1  # how many processors to use for this one job (assume 4GB of RAM per processor)
