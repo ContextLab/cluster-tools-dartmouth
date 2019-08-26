@@ -8,21 +8,13 @@ config = dict()
 
 #add additional checks for your local machine here...
 # ******** check kiewit hostname from eduroam ********
-hostname = socket.gethostname().lower()
-if ('local' in hostname) or ('paxton' in hostname) or ('vpn' in hostname):
-    config['datadir'] = '/Users/paxtonfitzpatrick/Documents/Dartmouth/CDL/MIND-2019/narrative_complexity/data'
-    config['workingdir'] = config['datadir']
-    config['startdir'] = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))  # directory to start the job in
-    config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_local.sh')
-else:
-    config['datadir'] = '/dartfs/rc/lab/D/DBIC/CDL/f0028ph/MIND-narrative-modeling/data/'
-    config['startdir'] = '/dartfs/rc/lab/D/DBIC/CDL/f0028ph/MIND-narrative-modeling/'
-    config['workingdir'] = os.path.join(config['startdir'], 'cluster-scripts')
-    config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_cluster.sh')
 
+config['startdir'] = '/dartfs/rc/lab/D/DBIC/CDL/f0028ph/memory-dynamics/'
+config['workingdir'] = os.path.join(config['startdir'], 'cluster-scripts')
+config['datadir'] = os.path.join(config['startdir'], 'data')
+config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_cluster.sh')
 config['scriptdir'] = os.path.join(config['workingdir'], 'scripts')
 config['lockdir'] = os.path.join(config['workingdir'], 'locks')
-config['resultsdir'] = os.path.join(config['workingdir'], 'results')
 
 
 # runtime options
