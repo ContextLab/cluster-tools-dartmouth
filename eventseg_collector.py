@@ -5,58 +5,104 @@ import pickle
 import traceback
 import numpy as np
 import pandas as pd
-from ast import literal_eval
+import matplotlib.pyplot as plt
+from itertools import zip_longest
 from eventseg_config import config
 
-trajs_dir = os.path.join(config['datadir'], 'trajectories')
+kvals_dir = os.path.join(config['datadir'], 'k-values')
 events_dir = os.path.join(config['datadir'], 'events')
-eventseg_dir = os.path.join(config['datadir'], 'eventseg_models')
-corrmat_dir = os.path.join(config['datadir'], 'corrmats')
-boundaries_dir = os.path.join(config['datadir'], 'event_boundaries')
+eventseg_dir = os.path.join(config['datadir'], 'eventseg-models')
+eventtimes_dir = os.path.join(config['datadir'], 'event-times')
+optimized_dir = os.path.join(config['datadir'], 'optimized')
+plot_dir = os.path.join(config['datadir'], 'plots')
 
-ks_list = list(range(2, 76))
+# plot params
+suptitles = {'atlep1' : 'Atlanta episode 1 immediate recall',
+          'atlep2' : 'Atlanta episode 2 recall',
+          'delayed' : 'Atlanta episode 1 delayed recall',
+          'prediction' : 'Prediction'}
 
-data_df = pd.DataFrame(columns=['title', 'trajectory', 'n_events', 'events', 'event_boundaries'],
-    index=list(range(len(os.listdir(eventseg_dir)))))
+for d in [optimized_dir, plot_dir]:
+    if not os.path.isdir(d):
+        os.mkdir(d)
 
-for i, script in enumerate(os.listdir(eventseg_dir)):
-    data_df.loc[i, 'title'] = script.replace('-', ' ')
+for root, dirs, files in os.walk(kvals_dir):
+    # looking at each rectype
+    if any(f.startswith('debug') for f in files):
+        rectype = os.path.split(root)[-1]
+        files = [file for file in files if file.startswith('debug')]
+        print(f'optimizing {rectype}...')
 
-    traj_fp = os.path.join(trajs_dir, f'{script}_traj.npy')
-    data_df.loc[i, 'trajectory'] = np.load(traj_fp)
+        fig1, axarr1 = plt.subplots(nrows=len(files)//8+1, ncols=8, sharex=True, sharey=True)
+        fig1.set_size_inches(len(axarr1[0])*4, len(axarr1)*4)
+        fig1.suptitle(f'{suptitles[rectype]} correlations by k', y=1.05)
+        axarr1 = axarr1.flatten()
 
-    scores = []
-    for k in ks_list:
-        eventseg_fp = os.path.join(eventseg_dir, script, f'{script}_eventseg_k{k}.p')
-        try:
-            with open(eventseg_fp, 'rb') as f:
-                ev = pickle.load(f)
+        fig2, axarr2 = plt.subplots(nrows=len(files)//8+1, ncols=8)
+        fig2.set_size_inches(len(axarr2[0])*4, len(axarr2)*4)
+        fig1.suptitle(f'{suptitles[rectype]} k-optimization functions', y=1.05)
+        axarr2 = axarr2.flatten()
 
-            corrmat = np.load(os.path.join(corrmat_dir, f'{script}_corrmat.npy'))
-            w = np.round(ev.segments_[0]).astype(int)
-            mask = np.sum(list(map(lambda x: np.outer(x, x), w.T)), 0).astype(bool)
-            within = corrmat[mask].mean()
-            ra = corrmat[~mask].mean()
-            scores.append((within, across))
+        for i, (f, ax1, ax2) in enumerate(zip_longest(files, axarr1, axarr2)):
+            kval_path = os.path.join(root, f)
+            ks = np.load(kval_path)
 
-        except Exception as e:
-            traceback.print_exc()
-            scores.append(np.nan)
+            t = list(map(lambda x: x[0]/(x[1]+100), ks))
+            t /= np.max(t)
+            for j, v in enumerate(t):
+                t[j] -= (j+2)/1000    # regularization term (5 x recall_wsize)
+            max_k = np.argmax(t) + 2
 
-    t = list(map(lambda x: x[0]/(x[1]-(scores[0][0]/scores[0][1])), scores))
-    t /= np.max(t)
-    ratios = list(map(lambda x: x - k/250, t))
+            # select and organize corresponding files for optimal k
+            turkid = f.split('-')[0]
+            opt_events_path = os.path.join(events_dir, rectype, turkid, f'{max_k}.npy')
+            opt_evseg_path = os.path.join(eventseg_dir, rectype, turkid, f'{max_k}.p')
+            opt_times_path = os.path.join(eventtimes_dir, rectype, turkid, f'{max_k}.npy')
 
-    maxk = ks_list[np.argmax(ratios)]
-    data_df.loc[i, 'n_events'] = maxk
+            for old_path in [opt_events_path, opt_evseg_path, opt_times_path]:
+                split_old = old_path.split('/')
+                new_path = os.path.join(optimized_dir, split_old[-4:-2], f'{turkid}{os.path.splitext(old_path)[1]}')
 
-    events_fp = os.path.join(events_dir, script, f'{script}_events_k{maxk}.npy')
-    data_df.loc[i, 'events'] = np.load(events_fp)
+                if not os.path.isdir(os.path.dirname(new_path)):
+                    os.makedirs(os.path.dirname(new_path))
 
-    boundaries_fp = os.path.join(boundaries_dir, script, f'{script}_boundaries_k{maxk}.txt')
-    with open(boundaries_fp, 'r') as f:
-        boundaires = f.read().split('\n')[:-1]
-    boundaries = [literal_eval(b) for b in boundaries]
-    data_df.loc[i, 'event_boundaries'] = boundaries
+                os.rename(old_path, new_path)
 
-data_df.to_csv('finished_data.csv')
+            # plotting
+            if not f:
+                ax1.axis('off')
+                ax2.axis('off')
+                continue
+
+            ax1.plot([np.nan]*2 + list(map(lambda x: x[0], ks)), label='Within-event')
+            ax1.plot([np.nan]*2 + list(map(lambda x: x[1], ks)), label='Across-events')
+            ax1.set_title(f'P{i+1}')
+
+            ax2.plot([np.nan]*2 + list(t))
+            ax2.set_xticks(np.arange(0, 51, 10))
+            ax2.set_title(f'P{i+1}: optimal k = {max_k}')
+
+            # left column
+            if not i % 8:
+                ax1.set_ylabel('Correlation')
+                ax1.set_yticks(np.arange(0, 1.1, .2))
+                ax2.set_ylabel('Normalized\nwithin/across ratio')
+            else:
+                ax1.set_ylabel('')
+                ax2.set_ylabel('')
+            # bottom row
+            if i > len(files) - 8:
+                ax1.set_xlabel('Number of events (k)')
+                ax2.set_xlabel('Number of events (k)')
+            else:
+                ax1.set_xlabel('')
+                ax1.set_xticklabels([])
+                ax2.set_xlabel('')
+                ax2.set_xticklabels([])
+
+        fig1.tight_layout()
+        fig1.subplots_adjust()
+        fig1.savefig(os.path.join(plot_dir, f'{rectype}-corr-curves.pdf'), bbox_inches='tight')
+        fig2.tight_layout()
+        fig2.subplots_adjust()
+        fig2.savefig(os.path.join(plot_dir, f'{rectype}-k-opt-curves.pdf'), bbox_inches='tight')
