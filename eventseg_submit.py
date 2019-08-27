@@ -10,14 +10,18 @@ import datetime as dt
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
+job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg_cruncher.py')
 trajs_dir = os.path.join(config['datadir'], 'trajectories')
 kvals_dir = os.path.join(config['datadir'], 'k-values')
 events_dir = os.path.join(config['datadir'], 'events')
 eventseg_dir = os.path.join(config['datadir'], 'eventseg-models')
+eventtimes_dir = os.path.join(config['datadir'], 'event-times')
 
 job_commands = list()
 job_names - list()
-job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg_cruncher.py')
+# range of possible k-values to search over (inclusive)
+min_k = 2
+max_k = 50
 
 for d in [kvals_dir, events_dir, eventseg_dir]:
     if not os.path.isdir(d):
@@ -28,8 +32,9 @@ for rectype in os.listdir(trajs_dir):
     rectype_kdir = os.path.join(kvals_dir, rectype)
     rectype_eventsdir = os.path.join(events_dir, rectype)
     rectype_eventsegdir = os.path.join(eventseg_dir, rectype)
+    rectype_timesdir = os.path.join(eventtimes_dir, rectype)
 
-    for rt_dir in [rectype_kdir, rectype_eventsdir, rectype_eventsegdir]:
+    for rt_dir in [rectype_kdir, rectype_eventsdir, rectype_eventsegdir, rectype_timesdir]:
         if not os.path.isdir(rt_dir):
             os.mkdir(rectype_kdir)
 
@@ -39,21 +44,15 @@ for rectype in os.listdir(trajs_dir):
             traj = os.path.splitext(traj_fname)[0]
             traj_eventsdir = os.path.join(rectype_eventsdir, traj)
             traj_eventsegdir = os.path.join(rectype_eventsegdir, traj)
+            traj_timesdir = os.path.join(rectype_timesdir, traj)
 
-            for t_dir in [traj_eventsdir, traj_eventsegdir]:
+            for t_dir in [traj_eventsdir, traj_eventsegdir, traj_timesdir]:
                 if not os.path.isdir(t_dir):
                     os.mkdir(t_dir)
 
 
-            job_commands.append(f'{job_script} {os.path.join(trajs_dir, rectype, traj_fname)}')
+            job_commands.append(f'{job_script} {os.path.join(trajs_dir, rectype, traj_fname)} {min_k} {max_k}')
             job_names.append(f'optimize_k_{traj}')
-
-
-
-
-
-
-
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
