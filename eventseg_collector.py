@@ -2,10 +2,13 @@
 
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 from itertools import zip_longest
 from shutil import copy2
 from eventseg_config import config
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_context('talk')
 
 kvals_dir = os.path.join(config['datadir'], 'k-values')
 events_dir = os.path.join(config['datadir'], 'events')
@@ -17,6 +20,7 @@ plot_dir = os.path.join(config['datadir'], 'plots')
 # plot params
 suptitles = {'atlep1' : 'Atlanta episode 1 immediate recall',
           'atlep2' : 'Atlanta episode 2 recall',
+          'arrdev' : 'Arrested Development recall',
           'delayed' : 'Atlanta episode 1 delayed recall',
           'prediction' : 'Prediction'}
 
@@ -33,12 +37,12 @@ for root, dirs, files in os.walk(kvals_dir):
 
         fig1, axarr1 = plt.subplots(nrows=len(files)//8+1, ncols=8, sharex=True, sharey=True)
         fig1.set_size_inches(len(axarr1[0])*4, len(axarr1)*4)
-        fig1.suptitle(f'{suptitles[rectype]} correlations by k', y=1.05)
+        fig1.suptitle(f'{suptitles[rectype]} correlations by k', y=1.02)
         axarr1 = axarr1.flatten()
 
         fig2, axarr2 = plt.subplots(nrows=len(files)//8+1, ncols=8)
         fig2.set_size_inches(len(axarr2[0])*4, len(axarr2)*4)
-        fig1.suptitle(f'{suptitles[rectype]} k-optimization functions', y=1.05)
+        fig1.suptitle(f'{suptitles[rectype]} k-optimization functions', y=1.02)
         axarr2 = axarr2.flatten()
 
         for i, (f, ax1, ax2) in enumerate(zip_longest(files, axarr1, axarr2)):
@@ -53,7 +57,7 @@ for root, dirs, files in os.walk(kvals_dir):
             t = list(map(lambda x: x[0]/(x[1]+100), ks))
             t /= np.max(t)
             for j, v in enumerate(t):
-                t[j] -= (j+2)/1000    # regularization term (5 x recall_wsize)
+                t[j] -= (j+2)/50
             max_k = np.argmax(t) + 2
 
             # select and organize corresponding files for optimal k
@@ -74,9 +78,15 @@ for root, dirs, files in os.walk(kvals_dir):
             # plotting
             ax1.plot([np.nan]*2 + list(map(lambda x: x[0], ks)), label='Within-event')
             ax1.plot([np.nan]*2 + list(map(lambda x: x[1], ks)), label='Across-events')
+            ax1.legend()
+            ax1.set_xlim(0, 51)
+            ax1.set_ylim(0, 1)
+            ax1.set_xticks(np.arange(0, 51, 10))
             ax1.set_title(f'P{i+1}')
 
             ax2.plot([np.nan]*2 + list(t))
+            ax2.set_xlim(0, 51)
+            ax2.set_ylim(0, 1)
             ax2.set_xticks(np.arange(0, 51, 10))
             ax2.set_title(f'P{i+1}: optimal k = {max_k}')
 
@@ -85,11 +95,12 @@ for root, dirs, files in os.walk(kvals_dir):
                 ax1.set_ylabel('Correlation')
                 ax1.set_yticks(np.arange(0, 1.1, .2))
                 ax2.set_ylabel('Normalized\nwithin/across ratio')
+                ax2.set_yticks(np.arange(0, 1.1, .2))
             else:
                 ax1.set_ylabel('')
                 ax2.set_ylabel('')
             # bottom row
-            if i > len(files) - 8:
+            if i > len(files) - 9:
                 ax1.set_xlabel('Number of events (k)')
                 ax2.set_xlabel('Number of events (k)')
             else:
