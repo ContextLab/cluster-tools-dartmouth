@@ -1,12 +1,10 @@
 #!/usr/bin/python
 
 import os
-import pickle
-import traceback
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 from itertools import zip_longest
+from shutil import copy2
 from eventseg_config import config
 
 kvals_dir = os.path.join(config['datadir'], 'k-values')
@@ -44,6 +42,11 @@ for root, dirs, files in os.walk(kvals_dir):
         axarr2 = axarr2.flatten()
 
         for i, (f, ax1, ax2) in enumerate(zip_longest(files, axarr1, axarr2)):
+            if not f:
+                ax1.axis('off')
+                ax2.axis('off')
+                continue
+
             kval_path = os.path.join(root, f)
             ks = np.load(kval_path)
 
@@ -61,19 +64,14 @@ for root, dirs, files in os.walk(kvals_dir):
 
             for old_path in [opt_events_path, opt_evseg_path, opt_times_path]:
                 split_old = old_path.split('/')
-                new_path = os.path.join(optimized_dir, split_old[-4:-2], f'{turkid}{os.path.splitext(old_path)[1]}')
+                new_path = os.path.join(optimized_dir, *split_old[-4:-2], f'{turkid}{os.path.splitext(old_path)[1]}')
 
                 if not os.path.isdir(os.path.dirname(new_path)):
                     os.makedirs(os.path.dirname(new_path))
 
-                os.rename(old_path, new_path)
+                copy2(old_path, new_path)
 
             # plotting
-            if not f:
-                ax1.axis('off')
-                ax2.axis('off')
-                continue
-
             ax1.plot([np.nan]*2 + list(map(lambda x: x[0], ks)), label='Within-event')
             ax1.plot([np.nan]*2 + list(map(lambda x: x[1], ks)), label='Across-events')
             ax1.set_title(f'P{i+1}')

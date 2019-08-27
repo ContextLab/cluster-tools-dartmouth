@@ -18,12 +18,12 @@ eventseg_dir = os.path.join(config['datadir'], 'eventseg-models')
 eventtimes_dir = os.path.join(config['datadir'], 'event-times')
 
 job_commands = list()
-job_names - list()
+job_names = list()
 # range of possible k-values to search over (inclusive)
 min_k = 2
 max_k = 50
 
-for d in [kvals_dir, events_dir, eventseg_dir]:
+for d in [kvals_dir, events_dir, eventseg_dir, eventtimes_dir]:
     if not os.path.isdir(d):
         os.mkdir(d)
 
@@ -36,7 +36,7 @@ for rectype in os.listdir(trajs_dir):
 
     for rt_dir in [rectype_kdir, rectype_eventsdir, rectype_eventsegdir, rectype_timesdir]:
         if not os.path.isdir(rt_dir):
-            os.mkdir(rectype_kdir)
+            os.mkdir(rt_dir)
 
     for traj_fname in os.listdir(os.path.join(trajs_dir, rectype)):
         # ignore average trajectories, hidden files
@@ -52,7 +52,10 @@ for rectype in os.listdir(trajs_dir):
 
 
             job_commands.append(f'{job_script} {os.path.join(trajs_dir, rectype, traj_fname)} {min_k} {max_k}')
-            job_names.append(f'optimize_k_{traj}')
+            for suffix in (['', '_1', '_2', '_3']):
+                if not f'optimize_k_{traj}{suffix}' in job_names:
+                    job_names.append(f'optimize_k_{traj}{suffix}')
+                    break
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
