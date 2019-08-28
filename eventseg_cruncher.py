@@ -40,7 +40,11 @@ for i, k in enumerate(ks):
 
     event_times = []
     for s in ev.segments_[0].T:
-        tp = np.where(np.round(s)==1)[0]
+        try:
+            tp = np.where(np.round(s)==1)[0]
+        # deal with error caused by overfitting predictions high k-values
+        except IndexError:
+            tp = [np.nan, np.nan]
         event_times.append((tp[0], tp[-1]))
 
     np.save(os.path.join(events_dir, f'{k}.npy'), events)
