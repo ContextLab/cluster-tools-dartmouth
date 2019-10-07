@@ -18,11 +18,19 @@ optimized_dir = os.path.join(config['datadir'], 'optimized')
 plot_dir = os.path.join(config['datadir'], 'plots')
 
 # plot params
-suptitles = {'atlep1' : 'Atlanta episode 1 immediate recall',
-          'atlep2' : 'Atlanta episode 2 recall',
-          'arrdev' : 'Arrested Development recall',
-          'delayed' : 'Atlanta episode 1 delayed recall',
-          'prediction' : 'Prediction'}
+suptitles = {
+    'atlep1': 'Atlanta episode 1 immediate recall',
+    'atlep2': 'Atlanta episode 2 recall',
+    'arrdev': 'Arrested Development recall',
+    'delayed': 'Atlanta episode 1 delayed recall',
+    'prediction': 'Prediction'
+}
+
+resample_scales = {
+    'atlep1': 3.0351966873706004,
+    'atlep2': 2.9662162162162162,
+    'arrdev': 2.3121495327102806
+}
 
 for d in [optimized_dir, plot_dir]:
     if not os.path.isdir(d):
@@ -45,6 +53,13 @@ for root, dirs, files in os.walk(kvals_dir):
         fig1.suptitle(f'{suptitles[rectype]} k-optimization functions', y=1.02)
         axarr2 = axarr2.flatten()
 
+        if rectype == 'delayed':
+            ep = 'atlep1'
+        elif rectype == 'prediction':
+            ep = 'atlep2'
+        else:
+            ep = rectype
+
         for i, (f, ax1, ax2) in enumerate(zip_longest(files, axarr1, axarr2)):
             if not f:
                 ax1.axis('off')
@@ -54,10 +69,12 @@ for root, dirs, files in os.walk(kvals_dir):
             kval_path = os.path.join(root, f)
             ks = np.load(kval_path)
 
-            t = list(map(lambda x: x[0]/(x[1]+100), ks))
+            t = list(map(lambda x: x[0]/(x[1]-min([i[2] for i in ks])), ks))
             t /= np.max(t)
+
             for j, v in enumerate(t):
-                t[j] -= (j+2)/50
+                t[j] -= ((j+2)/50) * resample_scales[ep]
+
             max_k = np.argmax(t) + 2
 
             # select and organize corresponding files for optimal k
