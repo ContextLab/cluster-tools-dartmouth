@@ -1,61 +1,43 @@
 #!/usr/bin/python
 
 # create a bunch of job scripts
-from eventseg_config import config
+from embedding_config import config
 from subprocess import call
 import os
 import socket
 import getpass
 import datetime as dt
+from os.path import join as opj
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
-job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'eventseg_cruncher.py')
-trajs_dir = os.path.join(config['datadir'], 'trajectories')
-kvals_dir = os.path.join(config['datadir'], 'k-values')
-events_dir = os.path.join(config['datadir'], 'events')
-eventseg_dir = os.path.join(config['datadir'], 'eventseg-models')
-eventtimes_dir = os.path.join(config['datadir'], 'event-times')
+job_script = opj(os.path.dirname(os.path.realpath(__file__)), 'embedding_cruncher.py')
+
+embeddings_dir = opj(config['datadir'], 'embeddings')
+fig_dir = opj(config['datadir'], 'figures')
 
 job_commands = list()
 job_names = list()
 # range of possible k-values to search over (inclusive)
-min_k = 2
-max_k = 50
+np_seeds = list(range(2000))
 
-for d in [kvals_dir, events_dir, eventseg_dir, eventtimes_dir]:
+rectypes = ['atlep1', 'atlep2', 'arrdev', 'delayed']
+
+for d in [embeddings_dir, fig_dir]:
     if not os.path.isdir(d):
         os.mkdir(d)
+        for rectype in rectypes:
+            if not os.path.isdir(opj(d, rectype)):
+                os.mkdir(opj(d, rectype))
 
-
-for rectype in os.listdir(trajs_dir):
-    rectype_kdir = os.path.join(kvals_dir, rectype)
-    rectype_eventsdir = os.path.join(events_dir, rectype)
-    rectype_eventsegdir = os.path.join(eventseg_dir, rectype)
-    rectype_timesdir = os.path.join(eventtimes_dir, rectype)
-
-    for rt_dir in [rectype_kdir, rectype_eventsdir, rectype_eventsegdir, rectype_timesdir]:
-        if not os.path.isdir(rt_dir):
-            os.mkdir(rt_dir)
-
-    for traj_fname in os.listdir(os.path.join(trajs_dir, rectype)):
-        # ignore average trajectories, hidden files
-        if traj_fname.startswith('debug'):
-            traj = os.path.splitext(traj_fname)[0]
-            traj_eventsdir = os.path.join(rectype_eventsdir, traj)
-            traj_eventsegdir = os.path.join(rectype_eventsegdir, traj)
-            traj_timesdir = os.path.join(rectype_timesdir, traj)
-
-            for t_dir in [traj_eventsdir, traj_eventsegdir, traj_timesdir]:
-                if not os.path.isdir(t_dir):
-                    os.mkdir(t_dir)
-
-
-            job_commands.append(f'{job_script} {os.path.join(trajs_dir, rectype, traj_fname)} {min_k} {max_k}')
-            for suffix in (['', '_1', '_2', '_3']):
-                if not f'optimize_k_{traj}{suffix}' in job_names:
-                    job_names.append(f'optimize_k_{traj}{suffix}')
-                    break
+for ns in np_seeds:
+    exists = False
+    for rectype in rectypes:
+        if all(os.path.isfile(opj(embeddings_dir, rectype, f'np{ns}_umap{0}.p')) for rectype in rectypes):
+            exists = True
+    if not exists:
+        job_commands.append(f'{job_script} {ns}')
+        job_names.append(f'optimize_embedding_numpy{ns}')
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
@@ -89,7 +71,7 @@ def create_job(name, job_command):
         os.makedirs(config['scriptdir'])
 
     template_fd = open(config['template'], 'r')
-    job_fname = os.path.join(config['scriptdir'], name)
+    job_fname = opj(config['scriptdir'], name)
     new_fd = open(job_fname, 'w+')
 
     while True:
@@ -149,9 +131,9 @@ locks = list()
 for n, c in zip(job_names, job_commands):
     # if the submission script crashes before all jobs are submitted, the lockfile system ensures that only
     # not-yet-submitted jobs will be submitted the next time this script runs
-    next_lockfile = os.path.join(lock_dir, n+'.LOCK')
+    next_lockfile = opj(lock_dir, n+'.LOCK')
     locks.append(next_lockfile)
-    if not os.path.isfile(os.path.join(script_dir, n)):
+    if not os.path.isfile(opj(script_dir, n)):
         if lock(next_lockfile):
             next_job = create_job(n, c)
 

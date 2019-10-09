@@ -9,7 +9,7 @@ config = dict()
 #add additional checks for your local machine here...
 # ******** check kiewit hostname from eduroam ********
 
-config['startdir'] = '/dartfs/rc/lab/D/DBIC/CDL/f0028ph/memory-dynamics/'
+config['startdir'] = '/dartfs/rc/lab/D/DBIC/CDL/f0028ph/memory-dynamics/embedding'
 config['workingdir'] = os.path.join(config['startdir'], 'cluster-scripts')
 config['datadir'] = os.path.join(config['startdir'], 'data')
 config['template'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'run_job_cluster.sh')
@@ -18,7 +18,7 @@ config['lockdir'] = os.path.join(config['workingdir'], 'locks')
 
 
 # runtime options
-config['jobname'] = "eventseg"  # default job name
+config['jobname'] = "embedding"  # default job name
 config['q'] = "largeq"  # options: default, test, largeq
 config['nnodes'] = 1  # how many nodes to use for this one job
 config['ppn'] = 1  # how many processors to use for this one job (assume 4GB of RAM per processor)
