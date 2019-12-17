@@ -1,8 +1,5 @@
-
 .idea/*
-
 *.pyc
-
-*.pyc
-
 *.DS_Store
+configs/*
+!configs/template_config.txt
