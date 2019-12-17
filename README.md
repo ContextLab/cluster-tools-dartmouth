@@ -1,4 +1,13 @@
-SuperEEG analysis tools
+```
+  ____ ____  _        ____ _           _             _______             _
+ / ___|  _ \| |      / ___| |_   _ ___| |_ ___ _ __ |__   __| ___   ___ | | ___
+| |   | | | | |     | |   | | | | / __| __/ _ \ '__|   | |   / _ \ / _ \| |/ __|
+| |__ | |_| | |___  | |___| | |_| \__ \ ||  __/ |      | |  | (_) | (_) | |\__ \
+ \____|____/|_____|  \____|_|\__,_|___/\__\___|_|      | |   \___/ \___/|_||___/
+
+```
+
+This toolbox contains a simple setup for deploying jobs on Dartmouth's high-performance computing clusters (Discovery, Ndoli, etc.)
 
 To run the main analysis, use:
 
@@ -15,10 +24,9 @@ NOTE: jobs have not been implemented yet
 
 =======
 
-Cluster Tools for Dartmouth
-
-Author: Jeremy R. Manning (jeremy@dartmouth.edu)
-Date: October 16, 2016
+Authors: Paxton C. Fitzpatrick and Jeremy R. Manning (jeremy@dartmouth.edu)
+Created: October 16, 2016
+Updated: December 16, 2019
 
 This repository provides a set of tools for submitting jobs on Dartmouth's
 Discovery and Ndoli computing clusters.  With minimal modification, they may
