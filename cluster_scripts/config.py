@@ -6,7 +6,6 @@ config = dict()
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 # job creation options
 
-#add additional checks for your local machine here...
 # ******** check kiewit hostname from eduroam ********
 if (socket.gethostname() == 'Paxtons-MacBook-Pro') or (socket.gethostname() == 'Paxtons-MacBook-Pro.kiewit.dartmouth.edu') or (socket.gethostname() == 'Paxtons-MacBook-Pro.local'):
     config['datadir'] = '/Users/paxtonfitzpatrick/Documents/Dartmouth/Thesis/memory-dynamics/data/models/participants/trajectories'
@@ -25,12 +24,13 @@ config['resultsdir'] = os.path.join(config['workingdir'], 'results')
 
 
 # runtime options
-config['jobname'] = "eventseg"  # default job name
-config['q'] = "largeq"  # options: default, test, largeq
-config['nnodes'] = 1  # how many nodes to use for this one job
-config['ppn'] = 4  # how many processors to use for this one job (assume 4GB of RAM per processor)
-config['walltime'] = '20:00:00'  # maximum runtime, in h:MM:SS
-config['cmd_wrapper'] = "python"  # replace with actual command wrapper (e.g. matlab, python, etc.)
+config['jobname'] = # (str) default job name
+config['q'] =   # (str) options: default, test, largeq
+config['nnodes'] = # (int) how many nodes to use for this one job
+config['ppn'] = # (int) how many processors to use for this one job (assume 4GB of RAM per processor)
+config['walltime'] =  # (str) maximum runtime, in h:MM:SS
+config['cmd_wrapper'] =  # (str) replace with actual command wrapper (e.g. matlab, python, etc.)
+config['modules']
 
 #extra options
 
