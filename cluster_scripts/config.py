@@ -1,5 +1,6 @@
 import socket
 import os
+from ..helpers import parse_config
 
 config = dict()
 
