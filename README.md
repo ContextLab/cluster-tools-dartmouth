@@ -69,6 +69,9 @@ you will need to specify the following:
   + modules: A list of modules that need to be loaded prior to executing your
              job.
 
+******** NOTE ********
+Steps below are outdated
+
 2.) create_and_submit_jobs.py.  This script is what you'll run to actually create
 your job scripts and submit (or run) them.  You'll want to modify the code in the
 indicated section to point to your job script and call any arguments you need to
