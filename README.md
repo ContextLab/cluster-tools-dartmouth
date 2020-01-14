@@ -1,7 +1,32 @@
-Cluster Tools for Dartmouth
+```
+  ____ ____  _        ____ _           _             _______             _
+ / ___|  _ \| |      / ___| |_   _ ___| |_ ___ _ __ |__   __| ___   ___ | | ___
+| |   | | | | |     | |   | | | | / __| __/ _ \ '__|   | |   / _ \ / _ \| |/ __|
+| |__ | |_| | |___  | |___| | |_| \__ \ ||  __/ |      | |  | (_) | (_) | |\__ \
+ \____|____/|_____|  \____|_|\__,_|___/\__\___|_|      | |   \___/ \___/|_||___/
 
-Author: Jeremy R. Manning (jeremy@dartmouth.edu)
-Date: October 16, 2016
+```
+
+This toolbox contains a simple setup for deploying jobs on Dartmouth's high-performance computing clusters (Discovery, Ndoli, etc.)
+
+To run the main analysis, use:
+
+python supereeg_submit.py
+
+If run on Discovery, it'll submit a batch of jobs to run in parallel.  If run on a personal computer it'll run each job
+in sequence.
+
+NOTE: jobs have not been implemented yet
+
+
+
+
+
+=======
+
+Authors: Paxton C. Fitzpatrick and Jeremy R. Manning (jeremy@dartmouth.edu)
+Created: October 16, 2016
+Updated: December 16, 2019
 
 This repository provides a set of tools for submitting jobs on Dartmouth's
 Discovery and Ndoli computing clusters.  With minimal modification, they may
@@ -43,6 +68,9 @@ you will need to specify the following:
                  "python", "sh", etc.
   + modules: A list of modules that need to be loaded prior to executing your
              job.
+
+******** NOTE ********
+Steps below are outdated
 
 2.) create_and_submit_jobs.py.  This script is what you'll run to actually create
 your job scripts and submit (or run) them.  You'll want to modify the code in the

@@ -1,21 +1,45 @@
 #!/usr/bin/python
 
 # create a bunch of job scripts
-from config import config
+from embedding_config import config
 from subprocess import call
 import os
 import socket
 import getpass
 import datetime as dt
+from os.path import join as opj
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
-# each job command should be formatted as a string
-job_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test.py')
-job_commands = map(lambda x: x[0]+" "+str(x[1]), zip([job_script]*10, range(10)))
+job_script = opj(os.path.dirname(os.path.realpath(__file__)), 'embedding_cruncher.py')
 
-# job_names should specify the file name of each script (as a list, of the same length as job_commands)
-job_names = map(lambda x: str(x)+'.sh', range(len(job_commands)))
+embeddings_dir = opj(config['datadir'], 'embeddings')
+fig_dir = opj(config['datadir'], 'figures')
+
+job_commands = list()
+job_names = list()
+# range of possible k-values to search over (inclusive)
+np_seeds = list(range(2000))
+
+rectypes = ['atlep1', 'atlep2', 'arrdev', 'delayed']
+
+for d in [embeddings_dir, fig_dir]:
+    if not os.path.isdir(d):
+        os.mkdir(d)
+        for rectype in rectypes:
+            if not os.path.isdir(opj(d, rectype)):
+                os.mkdir(opj(d, rectype))
+
+for ns in np_seeds:
+    exists = False
+    for rectype in rectypes:
+        if all(os.path.isfile(opj(embeddings_dir, rectype, f'np{ns}_umap{0}.p')) for rectype in rectypes):
+            exists = True
+    if not exists:
+        job_commands.append(f'{job_script} {ns}')
+        job_names.append(f'optimize_embedding_numpy{ns}')
+
+
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
 assert(len(job_commands) == len(job_names))
@@ -47,7 +71,7 @@ def create_job(name, job_command):
         os.makedirs(config['scriptdir'])
 
     template_fd = open(config['template'], 'r')
-    job_fname = os.path.join(config['scriptdir'], name)
+    job_fname = opj(config['scriptdir'], name)
     new_fd = open(job_fname, 'w+')
 
     while True:
@@ -107,14 +131,14 @@ locks = list()
 for n, c in zip(job_names, job_commands):
     # if the submission script crashes before all jobs are submitted, the lockfile system ensures that only
     # not-yet-submitted jobs will be submitted the next time this script runs
-    next_lockfile = os.path.join(lock_dir, n+'.LOCK')
+    next_lockfile = opj(lock_dir, n+'.LOCK')
     locks.append(next_lockfile)
-    if not os.path.isfile(os.path.join(script_dir, n)):
+    if not os.path.isfile(opj(script_dir, n)):
         if lock(next_lockfile):
             next_job = create_job(n, c)
 
-            if (socket.gethostname() == 'discovery.hpcc.dartmouth.edu') or (socket.gethostname() == 'ndoli.hpcc.dartmouth.edu'):
-                submit_command = 'echo "[SUBMITTING JOB: ' + next_job + ']"; qsub'
+            if ('discovery' in socket.gethostname()) or ('ndoli' in socket.gethostname()):
+                submit_command = 'echo "[SUBMITTING JOB: ' + next_job + ']"; mksub'
             else:
                 submit_command = 'echo "[RUNNING JOB: ' + next_job + ']"; sh'
 
