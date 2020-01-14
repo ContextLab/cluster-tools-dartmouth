@@ -11,8 +11,6 @@ job_config['template'] = opj(dirname(realpath(__file__)), 'run_job_cluster.sh')
 
 job_config['scriptdir'] = opj(job_config['workingdir'], 'scripts')
 job_config['lockdir'] = opj(job_config['workingdir'], 'locks')
-job_config['resultsdir'] = opj(job_config['workingdir'], 'results')
-
 
 # runtime options
 job_config['jobname'] = # (str) default job name
