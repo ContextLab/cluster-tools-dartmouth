@@ -1,3 +1,4 @@
+import hashlib
 import sys
 from configparser import ConfigParser
 
@@ -48,3 +49,20 @@ def prompt_input(question, default=None):
         else:
             sys.stdout.write("Please respond with either 'yes' (or 'y') \
             or 'no' (or 'n')\n")
+
+
+def md5_checksum(filepath):
+    """
+    computes the MD5 checksum of a local file to compare against remote
+
+    NOTE: MD5 IS CONSIDERED CRYPTOGRAPHICALLY INSECURE
+    (see https://en.wikipedia.org/wiki/MD5#Security)
+    However, it's still very much suitable in cases (like ours) where one
+    wouldn't expect **intentional** data corruption
+    """
+    hash_md5 = hashlib.md5()
+    with open(filepath, 'rb') as f:
+        # avoid having to read the whole file into memory at once
+        for chunk in iter(lambda: f.read(4096), b''):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
