@@ -8,7 +8,6 @@ job_config['startdir'] = # path to the foler for this project.  Should be someth
 job_config['datadir'] = opj(job_config['startir'], 'data')
 job_config['workingdir'] = opj(job_config['startir'], 'scripts')
 job_config['template'] = opj(dirname(realpath(__file__)), 'run_job_cluster.sh')
-
 job_config['scriptdir'] = opj(job_config['workingdir'], 'scripts')
 job_config['lockdir'] = opj(job_config['workingdir'], 'locks')
 
