@@ -1,12 +1,8 @@
 import os
 from os.path import dirname, realpath, join as opj
 from spurplus import connect_with_retries
-from _helpers import (
-    parse_config,
-    prompt_input,
-    md5_checksum
-)
-from cluster_scripts.config import job_config
+from ._helpers import md5_checksum, attempt_load_config, prompt_input
+from .cluster_scripts.config import job_config
 
 
 def upload_scripts(remote_shell, local_script_dir, job_conf, confirm_overwrite=True):
@@ -52,15 +48,7 @@ def upload_scripts(remote_shell, local_script_dir, job_conf, confirm_overwrite=T
 
 # setup for running as a stand-alone script
 if __name__ == '__main__':
-    config_dir = opj(dirname(realpath(__file__)), 'configs')
-    config_files = [f for f in os.listdir(config_dir) if not f.startswith('template')]
-    if len(config_files) == 1:
-        config_path = opj(config_dir, config_files[0])
-    else:
-        raise OSError(f"Unable to determine which config file to read from \
-        {len(config_files)} options in {config_dir}")
-
-    config = parse_config(config_path)
+    config = attempt_load_config()
     hostname = config['hostname']
     username = config['username']
     password = config['password']
