@@ -5,24 +5,11 @@ import sys
 from configparser import ConfigParser
 
 
-def md5_checksum(filepath):
-    """
-    computes the MD5 checksum of a local file to compare against remote
-
-    NOTE: MD5 IS CONSIDERED CRYPTOGRAPHICALLY INSECURE
-    (see https://en.wikipedia.org/wiki/MD5#Security)
-    However, it's still very much suitable in cases (like ours) where one
-    wouldn't expect **intentional** data corruption
-    """
-    hash_md5 = hashlib.md5()
-    with open(filepath, 'rb') as f:
-        # avoid having to read the whole file into memory at once
-        for chunk in iter(lambda: f.read(4096), b''):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
-
-
 def attempt_load_config():
+    """
+    tries to load config file from expected path in instances where neither a
+    filepath or dict-like object is provided
+    """
     splitpath = realpath(__file__).split(pathsep)
     try:
         try:
@@ -52,6 +39,23 @@ def attempt_load_config():
         location").with_traceback(e.__traceback__)
 
 
+def md5_checksum(filepath):
+    """
+    computes the MD5 checksum of a local file to compare against remote
+
+    NOTE: MD5 IS CONSIDERED CRYPTOGRAPHICALLY INSECURE
+    (see https://en.wikipedia.org/wiki/MD5#Security)
+    However, it's still very much suitable in cases (like ours) where one
+    wouldn't expect **intentional** data corruption
+    """
+    hash_md5 = hashlib.md5()
+    with open(filepath, 'rb') as f:
+        # avoid having to read the whole file into memory at once
+        for chunk in iter(lambda: f.read(4096), b''):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+
 def parse_config(config_path):
     """
     parses various user-specifc options from config file in configs dir
@@ -61,7 +65,9 @@ def parse_config(config_path):
         raw_config.read_file(f)
 
     config = dict(raw_config['CONFIG'])
-    config['confirm_overwrite_on_upload'] = raw_config.getboolean('CONFIG', 'confirm_overwrite_on_upload')
+    config['confirm_overwrite_on_upload'] = raw_config.getboolean(
+        'CONFIG', 'confirm_overwrite_on_upload'
+    )
     return config
 
 
