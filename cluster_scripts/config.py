@@ -20,6 +20,7 @@ job_config['ppn'] = # (int) how many processors to use for this one job (assume 
 job_config['walltime'] =  # (str) maximum runtime, in h:MM:SS (e.g., "10:00:00")
 job_config['cmd_wrapper'] =  # (str) replace with actual command wrapper (e.g. "python", "matlab", etc.)
 job_config['modules'] = # (str) modules you need to load for your scripts separated by a space (e.g., "python matlab")
+job_config['env_name'] = # (str) names of (currently, conda) environment you want your submission script and jobs to run in
 
 #extra options
 
