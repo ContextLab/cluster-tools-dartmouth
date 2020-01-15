@@ -1,5 +1,5 @@
 import os
-from os.path import join as opj
+from os.path import dirname, realpath, join as opj
 from spurplus import connect_with_retries
 from _helpers import (
     parse_config,
@@ -9,14 +9,10 @@ from _helpers import (
 from cluster_scripts.config import job_config
 
 
-def upload_scripts(remote_shell,
-                   local_script_dir,
-                   job_config,
-                   confirm_overwrite=True):
-
-    remote_startdir = job_config['startdir']
-    remote_workingdir = job_config['workingdir']
-    remote_datadir = job_config['datadir']
+def upload_scripts(remote_shell, local_script_dir, job_conf, confirm_overwrite=True):
+    remote_startdir = job_conf['startdir']
+    remote_workingdir = job_conf['workingdir']
+    remote_datadir = job_conf['datadir']
 
     to_upload = os.listdir(local_script_dir)
     # ignore hidden files (e.g., .DS_Store on MacOS)
@@ -29,7 +25,7 @@ def upload_scripts(remote_shell,
             print(f'creating remote directory: {remote_dir}')
             remote_shell.mkdir(remote_dir)
 
-    print("uploading files...")
+    print("uploading scripts...")
     for file in to_upload:
         src_path = opj(local_script_dir, file)
         dest_path = opj(remote_workingdir, file)
@@ -46,9 +42,35 @@ def upload_scripts(remote_shell,
                 question = f"{file}: overwrite remote version with local changes?"
                 overwrite_confirmed = prompt_input(question)
                 if not overwrite_confirmed:
-                    print(f"Skipping {file} (overwrite declined)")
+                    print(f"skipping {file} (overwrite declined)")
                     continue
 
         remote_shell.put(src_path, dest_path, create_directories=False)
+        print(f"uploaded {file}")
+    print("finished uploading scripts")
 
 
+# setup for running as a stand-alone script
+if __name__ == '__main__':
+    config_dir = opj(dirname(realpath(__file__)), 'configs')
+    config_files = [f for f in os.listdir(config_dir) if not f.startswith('template')]
+    if len(config_files) == 1:
+        config_path = opj(config_dir, config_files[0])
+    else:
+        raise OSError(f"Unable to determine which config file to read from \
+        {len(config_files)} options in {config_dir}")
+
+    config = parse_config(config_path)
+    hostname = config['hostname']
+    username = config['username']
+    password = config['password']
+    confirm_overwrite = config['confirm_overwrite_on_upload']
+
+    script_dir = opj(dirname(realpath(__file__)), 'cluster_scripts')
+
+    with connect_with_retries(
+        hostname=hostname,
+        username=username,
+        password=password
+    ) as cluster:
+        upload_scripts(cluster, script_dir, job_config, confirm_overwrite=confirm_overwrite)
