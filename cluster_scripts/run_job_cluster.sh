@@ -22,8 +22,8 @@ cd <config['startdir']>
 echo ----
 
 echo ACTIVATING MEMORY DYNAMICS VIRTUAL ENVIRONMENT
-module load python
-source activate memdyn
+module load <config['modules']>
+source activate <config['env_name']>
 
 echo ----
 
