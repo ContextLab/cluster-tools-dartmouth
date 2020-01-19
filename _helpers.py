@@ -1,7 +1,7 @@
 import hashlib
 import os
-from os.path import realpath, join as opj, sep as pathsep
 import sys
+from os.path import isfile, realpath, join as opj, sep as pathsep
 from configparser import ConfigParser
 
 
@@ -39,6 +39,17 @@ def attempt_load_config():
         location").with_traceback(e.__traceback__)
 
 
+def fmt_remote_commands(commands):
+    """
+    Formats a list of shell commands to be run in the SshShell instance.
+    Necessary because underlying Python SSH client (Paramiko) won't run any
+    state changes between commands.  So we run them all at once
+    """
+    executable = ['bash', '-c']
+    commands_str = ' && '.join(commands)
+    return executable + commands_str
+
+
 def md5_checksum(filepath):
     """
     computes the MD5 checksum of a local file to compare against remote
@@ -60,6 +71,10 @@ def parse_config(config_path):
     """
     parses various user-specifc options from config file in configs dir
     """
+    config_path = realpath(config_path)
+    if not isfile(config_path):
+        raise FileNotFoundError(f'Invalid path to config file: {config_path}')
+
     raw_config = ConfigParser(inline_comment_prefixes='#')
     with open(config_path, 'r') as f:
         raw_config.read_file(f)
