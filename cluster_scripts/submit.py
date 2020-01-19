@@ -1,50 +1,43 @@
 #!/usr/bin/python
 
 # create a bunch of job scripts
-from embedding_config import config
-from subprocess import call
+import getpass
 import os
 import socket
-import getpass
 import datetime as dt
-from os.path import join as opj
+from os.path import dirname, realpath, join as opj
+from subprocess import run
+from .config import job_config as config
 
+job_script = opj(dirname(realpath(__file__)), 'embedding_cruncher.py')
+job_name = config['jobname']
 
-# ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
-job_script = opj(os.path.dirname(os.path.realpath(__file__)), 'embedding_cruncher.py')
-
-embeddings_dir = opj(config['datadir'], 'embeddings')
-fig_dir = opj(config['datadir'], 'figures')
 
 job_commands = list()
 job_names = list()
-# range of possible k-values to search over (inclusive)
-np_seeds = list(range(2000))
 
-rectypes = ['atlep1', 'atlep2', 'arrdev', 'delayed']
+# ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
+# Write your job submission code here.
+# Your submission code should:
+#   + create the desired directory structure for your jobs' output files
+#   + iterate over the combinations of parameters with which you want to run jobs
+#   + for each parameter combination, append strings to the job_names and
+#     job_commands lists
+#     - items added to the job_names list should take the format:
+#       '{job_name}_{param1}_{param2}'
+#     - items added to the job_commands list should take the format:
+#       '{job_script} {param1} {param2}'
 
-for d in [embeddings_dir, fig_dir]:
-    if not os.path.isdir(d):
-        os.mkdir(d)
-        for rectype in rectypes:
-            if not os.path.isdir(opj(d, rectype)):
-                os.mkdir(opj(d, rectype))
-
-for ns in np_seeds:
-    exists = False
-    for rectype in rectypes:
-        if all(os.path.isfile(opj(embeddings_dir, rectype, f'np{ns}_umap{0}.p')) for rectype in rectypes):
-            exists = True
-    if not exists:
-        job_commands.append(f'{job_script} {ns}')
-        job_names.append(f'optimize_embedding_numpy{ns}')
+# The code below will create a bash script for each combination of paramaters
+# (named for the items in job_names) and place it in the scripts/ directory.
+# Each bash script is submitted to the job queue to run on a compute node with
+# the options specified in config.py.  These bash scripts, in turn, call your
+# cruncher.py script with the arguments specified in job_commands.
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
 assert(len(job_commands) == len(job_names))
-
-
 # job_command is referenced in the run_job.sh script
 # noinspection PyBroadException,PyUnusedLocal
 def create_job(name, job_command):
@@ -142,7 +135,7 @@ for n, c in zip(job_names, job_commands):
             else:
                 submit_command = 'echo "[RUNNING JOB: ' + next_job + ']"; sh'
 
-            call(submit_command + " " + next_job, shell=True)
+            run(submit_command + " " + next_job, shell=True)
 
 # all jobs have been submitted; release all locks
 for l in locks:
