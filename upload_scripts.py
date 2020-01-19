@@ -61,4 +61,9 @@ if __name__ == '__main__':
         username=username,
         password=password
     ) as cluster:
-        upload_scripts(cluster, script_dir, job_config, confirm_overwrite=confirm_overwrite)
+        upload_scripts(
+            cluster,
+            script_dir,
+            job_config,
+            confirm_overwrite=confirm_overwrite
+        )
