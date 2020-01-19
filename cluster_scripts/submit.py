@@ -12,7 +12,6 @@ from .config import job_config as config
 job_script = opj(dirname(realpath(__file__)), 'embedding_cruncher.py')
 job_name = config['jobname']
 
-
 job_commands = list()
 job_names = list()
 
@@ -36,34 +35,41 @@ job_names = list()
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
+script_dir = config['scriptdir']
+lock_dir = config['lockdir']
+template_script = config['template']
+lock_dir_exists = False
 
-assert(len(job_commands) == len(job_names))
-# job_command is referenced in the run_job.sh script
-# noinspection PyBroadException,PyUnusedLocal
-def create_job(name, job_command):
-    # noinspection PyUnusedLocal,PyShadowingNames
-    def create_helper(s, job_command):
-        x = [i for i, char in enumerate(s) if char == '<']
-        y = [i for i, char in enumerate(s) if char == '>']
-        if len(x) == 0:
-            return s
+# create script directory if it doesn't already exist
+try:
+    os.stat(script_dir)
+except FileNotFoundError:
+    os.makedirs(script_dir)
 
-        q = ''
-        index = 0
-        for i in range(len(x)):
-            q += s[index:x[i]]
-            unpacked = eval(s[x[i]+1:y[i]])
-            q += str(unpacked)
-            index = y[i]+1
-        return q
 
-    # create script directory if it doesn't already exist
-    try:
-        os.stat(config['scriptdir'])
-    except:
-        os.makedirs(config['scriptdir'])
+assert (len(job_commands) == len(job_names)), \
+    "job_names and job_commands must have equal numbers of items"
 
-    template_fd = open(config['template'], 'r')
+
+def _create_helper(s):
+    x = [i for i, char in enumerate(s) if char == '<']
+    y = [i for i, char in enumerate(s) if char == '>']
+    if len(x) == 0:
+        return s
+
+    q = ''
+    index = 0
+    for i in range(len(x)):
+        q += s[index:x[i]]
+        unpacked = eval(s[x[i] + 1:y[i]])
+        q += str(unpacked)
+        index = y[i] + 1
+    return q
+
+
+def create_job(name):
+
+    template_fd = open(template_script, 'r')
     job_fname = opj(config['scriptdir'], name)
     new_fd = open(job_fname, 'w+')
 
@@ -71,18 +77,17 @@ def create_job(name, job_command):
         next_line = template_fd.readline()
         if len(next_line) == 0:
             break
-        new_fd.writelines(create_helper(next_line, job_command))
+        new_fd.writelines(_create_helper(next_line))
     template_fd.close()
     new_fd.close()
     return job_fname
 
 
-# noinspection PyBroadException
 def lock(lockfile):
     try:
         os.stat(lockfile)
         return False
-    except:
+    except FileNotFoundError:
         fd = open(lockfile, 'w')
         fd.writelines('LOCK CREATE TIME: ' + str(dt.datetime.now()) + '\n')
         fd.writelines('HOST: ' + socket.gethostname() + '\n')
@@ -94,31 +99,20 @@ def lock(lockfile):
         return True
 
 
-# noinspection PyBroadException
 def release(lockfile):
     try:
         os.stat(lockfile)
         os.remove(lockfile)
         return True
-    except:
+    except FileNotFoundError:
         return False
 
 
-script_dir = config['scriptdir']
-lock_dir = config['lockdir']
-lock_dir_exists = False
-# noinspection PyBroadException
 try:
     os.stat(lock_dir)
     lock_dir_exists = True
-except:
+except FileNotFoundError:
     os.makedirs(lock_dir)
-
-# noinspection PyBroadException
-try:
-    os.stat(config['startdir'])
-except:
-    os.makedirs(config['startdir'])
 
 locks = list()
 for n, c in zip(job_names, job_commands):
