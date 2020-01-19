@@ -16,6 +16,7 @@ job_commands = list()
 job_names = list()
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
+
 # Write your job submission code here.
 # Your submission code should:
 #   + create the desired directory structure for your jobs' output files
@@ -35,10 +36,22 @@ job_names = list()
 
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
+assert (len(job_commands) == len(job_names)), \
+    "job_names and job_commands must have equal numbers of items"
+
 script_dir = config['scriptdir']
 lock_dir = config['lockdir']
 template_script = config['template']
-lock_dir_exists = False
+
+# use largeq if more than 600 jobs are being submitted (Discovery policy)
+if len(job_commands) > 600 and config['queue'] == 'default':
+    config['queue'] = 'largeq'
+
+# set command to activate conda env
+if config['env_type'] == 'conda':
+    config['env_cmd'] = 'source activate'
+else:
+    raise ValueError("Only conda environments are currently supported")
 
 # create script directory if it doesn't already exist
 try:
@@ -46,31 +59,30 @@ try:
 except FileNotFoundError:
     os.makedirs(script_dir)
 
-
-assert (len(job_commands) == len(job_names)), \
-    "job_names and job_commands must have equal numbers of items"
+lock_dir_exists = False
 
 
 def _create_helper(s):
-    x = [i for i, char in enumerate(s) if char == '<']
-    y = [i for i, char in enumerate(s) if char == '>']
-    if len(x) == 0:
+    opens_ix = [i for i, char in enumerate(s) if char == '<']
+    closes_ix = [i for i, char in enumerate(s) if char == '>']
+    # return line if it contains no replaceable options
+    if len(opens_ix) == 0:
         return s
 
     q = ''
     index = 0
-    for i in range(len(x)):
-        q += s[index:x[i]]
-        unpacked = eval(s[x[i] + 1:y[i]])
+    for i in range(len(opens_ix)):
+        q += s[index:opens_ix[i]]
+        unpacked = eval(s[opens_ix[i] + 1:y[i]])
         q += str(unpacked)
-        index = y[i] + 1
+        index = closes_ix[i] + 1
     return q
 
 
 def create_job(name):
 
     template_fd = open(template_script, 'r')
-    job_fname = opj(config['scriptdir'], name)
+    job_fname = opj(script_dir, name)
     new_fd = open(job_fname, 'w+')
 
     while True:

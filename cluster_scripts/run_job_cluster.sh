@@ -8,7 +8,7 @@
 #PBS -N <config['jobname']>
 
 # specify the queue the job will be added to (if more than 600, use largeq)
-#PBS -q <config['q']>
+#PBS -q <config['queue']>
 
 # specify the number of cores and nodes (estimate 4GB of RAM per core)
 #PBS -l nodes=<config['nnodes']>:ppn=<config['ppn']>
@@ -16,14 +16,12 @@
 # specify how long the job should run (wall time)
 #PBS -l walltime=<config['walltime']>
 
-# set the working directory *of the job* to the specified start directory
-cd <config['startdir']>
 
 echo ----
 
 echo ACTIVATING MEMORY DYNAMICS VIRTUAL ENVIRONMENT
 module load <config['modules']>
-source activate <config['env_name']>
+<config['env_cmd']> <config['env_name']>
 
 echo ----
 
