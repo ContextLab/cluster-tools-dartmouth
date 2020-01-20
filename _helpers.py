@@ -154,8 +154,7 @@ def write_remote_submitter(remote_shell, job_config, env_activate_cmd, env_deact
     }
 
     template = Template(
-        """
-#!/bin/bash -l
+"""#!/bin/bash -l
         
 #PBS -N ${jobname}-submitter
 #PBS -q default
@@ -168,8 +167,7 @@ $activate_cmd $env_name
         
 $cmd_wrapper $submitter_script
         
-$deactivate_cmd
-        """
+$deactivate_cmd"""
     )
 
     content = template.substitute(template_vals)
