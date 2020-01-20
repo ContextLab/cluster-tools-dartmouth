@@ -62,7 +62,7 @@ except FileNotFoundError:
 lock_dir_exists = False
 
 
-def _create_helper(s):
+def _create_helper(s, job_command):
     opens_ix = [i for i, char in enumerate(s) if char == '<']
     closes_ix = [i for i, char in enumerate(s) if char == '>']
     # return line if it contains no replaceable options
@@ -79,7 +79,7 @@ def _create_helper(s):
     return q
 
 
-def create_job(name):
+def create_job(name, job_command):
 
     template_fd = open(template_script, 'r')
     job_fname = opj(script_dir, name)
@@ -89,7 +89,7 @@ def create_job(name):
         next_line = template_fd.readline()
         if len(next_line) == 0:
             break
-        new_fd.writelines(_create_helper(next_line))
+        new_fd.writelines(_create_helper(next_line, job_command))
     template_fd.close()
     new_fd.close()
     return job_fname
