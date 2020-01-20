@@ -93,7 +93,6 @@ def prompt_input(question, default=None):
     """
     given a question, prompts user for command line input
     returns True for 'yes'/'y' and False for 'no'/'n' responses
-
     """
     assert default in ('yes', 'no', None), \
         "Default response must be either 'yes', 'no', or None"
@@ -125,10 +124,10 @@ def prompt_input(question, default=None):
             or 'no' (or 'n')\n")
 
 
-def write_remote_submitter(remote_shell, job_config, env_activate_cmd, env_deactivate_cmd, submitter_walltime):
+def write_remote_submitter(remote_shell, job_config, env_activate_cmd, env_deactivate_cmd, submitter_walltime='12:00:00'):
     remote_dir = job_config['workingdir']
+    # TODO: ability to handle custom-named submission script
     submitter_fpath = opj(remote_dir, 'submit_jobs.sh')
-
 
     try:
         assert remote_shell.is_dir(remote_dir)
@@ -143,7 +142,6 @@ def write_remote_submitter(remote_shell, job_config, env_activate_cmd, env_deact
             Intended directory does not exist."
         ).with_traceback(e.__traceback__)
 
-
     template_vals = {
         'jobname': job_config['jobname'],
         'walltime': submitter_walltime,
@@ -152,7 +150,7 @@ def write_remote_submitter(remote_shell, job_config, env_activate_cmd, env_deact
         'deactivate_cmd': env_deactivate_cmd,
         'env_name': job_config['env_name'],
         'cmd_wrapper': job_config['cmd_wrapper'],
-        'submitter_script': opj(remote_dir, 'submit.py')
+        'submitter_script': submitter_fpath
     }
 
     template = Template(
@@ -177,7 +175,3 @@ $deactivate_cmd
     content = template.substitute(template_vals)
     remote_shell.write_text(submitter_fpath, content)
     return submitter_fpath
-
-
-
-
