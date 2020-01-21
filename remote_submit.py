@@ -31,8 +31,12 @@ def remote_submit(sync_changes=False, config_path=None):
     hostname = config['hostname']
     username = config['username']
     password = config['password']
-    job_cmd = config['submit_command']
     confirm_overwrite = config['confirm_overwrite_on_upload']
+
+    if username.startswith('f00'):
+        job_cmd = 'mksub'
+    else:
+        job_cmd = 'qsub'
 
     # set commands
     if job_config['env_type'] == 'conda':
@@ -52,7 +56,7 @@ def remote_submit(sync_changes=False, config_path=None):
             script_dir = opj(dirname(realpath(__file__)), 'cluster_scripts')
             upload_scripts(cluster, script_dir, job_config, confirm_overwrite)
 
-        # create bash script to submit jobs from compute node
+        # create bash script to submit and run submit.py from compute node
         submitter_filepath = write_remote_submitter(
                                                     cluster,
                                                     job_config,
