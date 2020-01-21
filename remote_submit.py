@@ -2,7 +2,12 @@ from argparse import ArgumentParser
 from os.path import dirname, realpath, join as opj
 from spurplus import connect_with_retries
 from .upload_scripts import upload_scripts
-from ._helpers import attempt_load_config, fmt_remote_commands, parse_config, write_remote_submitter
+from ._helpers import (
+                        attempt_load_config,
+                        fmt_remote_commands,
+                        parse_config,
+                        write_remote_submitter
+                    )
 from .cluster_scripts.config import job_config
 
 
@@ -36,7 +41,7 @@ def remote_submit(sync_changes=False, config_path=None):
     job_cmd = config['submit_command']
     confirm_overwrite = config['confirm_overwrite_on_upload']
 
-    # activate environment
+    # set commands
     if job_config['env_type'] == 'conda':
         activate_cmd = 'source activate'
         deactivate_cmd = 'conda deactivate'
@@ -67,7 +72,7 @@ def remote_submit(sync_changes=False, config_path=None):
         remote_command = fmt_remote_commands(submitter_cmds)
         # run the submitter script
         cluster.run(remote_command)
-        return
+
 
 
 if __name__ == '__main__':
