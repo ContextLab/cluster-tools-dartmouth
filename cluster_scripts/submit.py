@@ -2,7 +2,6 @@
 
 # create a bunch of job scripts
 import os
-import socket
 from datetime import datetime as dt
 from os.path import dirname, realpath, join as opj
 from string import Template
@@ -80,100 +79,76 @@ class ScriptTemplate:
     def __init__(self, template, config):
         self.template = template
         self.config = config
-        self.hostname = socket.gethostname()
+        self.scriptdir = self.config['scriptdir']
+        self.lockdir = self.config['lockdir']
+        self.hostname = os.environ.get('HOSTNAME')
         self.username = os.environ.get('LOGNAME')
+        self.locks = []
 
-    def write_scriptfile(self, job_name, job_command):
-        template_vals = self.config
-        template_vals['job_name'] = job_name
-        template_vals['job_command'] = job_command
+        # set submission command
+        if self.username.startswith('f00'):
+            self.submit_cmd = 'mksub'
+        else:
+            self.submit_cmd = 'qsub'
 
-        script_content = self.template.substitute(template_vals)
-        filepath = opj(template_vals['scriptdir'], job_name)
-        with open(filepath, 'w+') as f:
-            f.write(script_content)
-
-        return filepath
+        # create directories if they don't already exist
+        try:
+            os.stat(self.scriptdir)
+        except FileNotFoundError:
+            os.mkdir(self.scriptdir)
+        try:
+            os.stat(self.lockdir)
+        except FileNotFoundError:
+            os.mkdir(self.lockdir)
 
     def lock(self, job_name):
-        lockfile_path = opj(self.config['lockdir'], f'{job_name}.LOCK')
+        lockfile_path = opj(self.lockdir, f'{job_name}.LOCK')
+        self.locks.append(lockfile_path)
         try:
             os.stat(lockfile_path)
+            return True
         except FileNotFoundError:
-            
+            with open(lockfile_path, 'w') as f:
+                f.writelines(f'LOCK CREATE TIME: {dt.now()} \n')
+                f.writelines(f'HOST: {self.hostname} \n')
+                f.writelines(f'USER: {self.username} \n')
+                f.writelines('\n-----\nCONFIG\n-----\n')
+                for opt, val in self.config.items():
+                    f.writelines(f'{opt.upper()} : {val} \n')
+            return False
+
+    def release_locks(self):
+        for l in self.locks:
+            os.remove(l)
+        os.rmdir(self.lockdir)
+
+    def submit_job(self, jobscript_path):
+        submission_cmd = f'echo "[SUBMITTING JOB: {jobscript_path} ]"; {self.submit_cmd}'
+        run([submission_cmd, jobscript_path])
 
 
-
-def lock(lockfile):
-    try:
-        os.stat(lockfile)
-        return False
-    except FileNotFoundError:
-        fd = open(lockfile, 'w')
-        fd.writelines('LOCK CREATE TIME: ' + str(dt.now()) + '\n')
-        fd.writelines('HOST: ' + socket.gethostname() + '\n')
-        fd.writelines('USER: ' + getpass.getuser() + '\n')
-        fd.writelines('\n-----\nCONFIG\n-----\n')
-        for k in config.keys():
-            fd.writelines(k.upper() + ': ' + str(config[k]) + '\n')
-        fd.close()
-        return True
-
-
-def release(lockfile):
-    try:
-        os.stat(lockfile)
-        os.remove(lockfile)
-        return True
-    except FileNotFoundError:
-        return False
-
-
-
-script_dir = config['scriptdir']
-lock_dir = config['lockdir']
-template_script = config['template']
-# create directories if they don't already exist
-try:
-    os.stat(script_dir)
-except FileNotFoundError:
-    os.makedirs(script_dir)
-
-try:
-    os.stat(lock_dir)
-    lock_dir_exists = True
-except FileNotFoundError:
-    os.makedirs(lock_dir)
+    def write_scriptfile(self, job_name, job_command):
+        filepath = opj(self.scriptdir, job_name)
+        try:
+            os.stat(filepath)
+            return
+        except FileNotFoundError:
+            template_vals = self.config
+            template_vals['job_name'] = job_name
+            template_vals['job_command'] = job_command
+            script_content = self.template.substitute(template_vals)
+            with open(filepath, 'w+') as f:
+                f.write(script_content)
+            return filepath
 
 
 script_template = ScriptTemplate(JOBSCRIPT_TEMPLATE, config)
 
+for job_n, job_c in zip(job_names, job_commands):
+    lockfile_exists = script_template.lock(job_n)
+    if not lockfile_exists:
+        script_filepath = script_template.write_scriptfile(job_n, job_c)
+        if script_filepath:
+            script_template.submit_job(script_filepath)
 
-for n, c in zip(job_names, job_commands):
-    script_template.lock
-
-
-
-
-locks = list()
-for n, c in zip(job_names, job_commands):
-    # if the submission script crashes before all jobs are submitted, the lockfile system ensures that only
-    # not-yet-submitted jobs will be submitted the next time this script runs
-    next_lockfile = opj(lock_dir, n+'.LOCK')
-    locks.append(next_lockfile)
-    if not os.path.isfile(opj(script_dir, n)):
-        if lock(next_lockfile):
-            next_job = create_job(n, c)
-
-            if ('discovery' in socket.gethostname()) or ('ndoli' in socket.gethostname()):
-                submit_command = 'echo "[SUBMITTING JOB: ' + next_job + ']"; mksub'
-            else:
-                submit_command = 'echo "[RUNNING JOB: ' + next_job + ']"; sh'
-
-            run(submit_command + " " + next_job, shell=True)
-
-# all jobs have been submitted; release all locks...
-for l in locks:
-    release(l)
-# ...and remove the lock directory
-os.rmdir(lock_dir)
+script_template.release_locks()
