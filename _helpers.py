@@ -118,6 +118,9 @@ def parse_config(config_path):
     config['confirm_overwrite_on_upload'] = raw_config.getboolean(
         'CONFIG', 'confirm_overwrite_on_upload'
     )
+    config['confirm_resubmission'] = raw_config.getboolean(
+        'CONFIG', 'confirm_resubmission'
+    )
     return config
 
 
