@@ -62,15 +62,15 @@ def get_qstat(remote_shell, options=None):
     """
     Return the status of running "qstat" on the cluster, optionally with a
     filter for the job's status
-    :param remote_shell: spurplus.SshShell instance
-    :param options: (str, defaults to 'a')
+    :param remote_shell: (spurplus.SshShell instance)
+    :param options: (str)
                     options to run along with the "qstat" command. For further
                     information, run "get_qstat(remote_shell, options=['man'])
                     locally or "man qstat" from the cluster.
     :return qstat_output: (str) output of running command on the cluster
     """
     if options is None:
-        cmd = ['qstat -a']
+        cmd = ['qstat']
     elif options == 'man':
         cmd = ['man qstat']
     elif not options.startswith('-'):
