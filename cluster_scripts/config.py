@@ -31,7 +31,7 @@ job_config['walltime'] =        # (str) maximum runtime, in h:MM:SS
 # Email update options
 job_config['email_updates'] =   # (str) what events you want to receive email
                                 # notifications about (see below)
-job_config['email_addr'] =      # (str or None) email address where you want job
+job_config['email_addr'] =      # (str) email address where you want job
                                 # notifications sent (see below)
 
 # Torque (the cluster's resource manager) can send you emails about the status
@@ -46,7 +46,7 @@ job_config['email_addr'] =      # (str or None) email address where you want job
 # If you would like to receive emails for any of these events, set the value of
 # 'email_addr' to the address you'd like to receive them
 # To receive no emails from Torque, set 'email_updates' to "n" (no mail) and
-# 'email_addr' to None
+# 'email_addr' to an empty string ('')
 
 # ====== MODIFY ONLY THE CODE BETWEEN THESE LINES ======
 
