@@ -2,13 +2,13 @@ from argparse import ArgumentParser
 from os.path import dirname, realpath, join as opj
 from spurplus import connect_with_retries
 from .upload_scripts import upload_scripts
+from .cluster_scripts.config import job_config
 from ._helpers import (
                         attempt_load_config,
                         fmt_remote_commands,
                         parse_config,
                         write_remote_submitter
                     )
-from .cluster_scripts.config import job_config
 
 
 def remote_submit(sync_changes=False, config_path=None):
@@ -21,13 +21,6 @@ def remote_submit(sync_changes=False, config_path=None):
     :param config_path: (str, optional, default: None) path to your config file.
     If you created your config following the instructions in
     configs/template_config.txt, you can simply leave this empty
-    :param await_output: (bool, default: False) if True, keep the connection with
-    the remote open until your submit script is finished creating jobs.
-    Otherwise, terminate the connection after calling the submit script and allow
-    job submission to happen in the background.
-    WARNING: This can be rather lengthy process depending on the number of jobs
-    you're running. Setting this to True opens you up to the possibility that
-    the ssh connection may fail before job submission is finished
     :return: None (other than some hopefully some results, eventually!)
     """
     if config_path is None:
