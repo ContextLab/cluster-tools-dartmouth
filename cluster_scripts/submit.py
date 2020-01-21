@@ -1,11 +1,11 @@
 #!/usr/bin/python
 
 # create a bunch of job scripts
-import getpass
 import os
 import socket
-import datetime as dt
+from datetime import datetime as dt
 from os.path import dirname, realpath, join as opj
+from string import Template
 from subprocess import run
 from .config import job_config as config
 
@@ -39,60 +39,69 @@ job_names = list()
 assert (len(job_commands) == len(job_names)), \
     "job_names and job_commands must have equal numbers of items"
 
-script_dir = config['scriptdir']
-lock_dir = config['lockdir']
-template_script = config['template']
-
 # use largeq if more than 600 jobs are being submitted (Discovery policy)
 if len(job_commands) > 600 and config['queue'] == 'default':
     config['queue'] = 'largeq'
 
 # set command to activate conda env
 if config['env_type'] == 'conda':
-    config['env_cmd'] = 'source activate'
+    config['activate_cmd'] = 'source activate'
+    config['deactivate_cmd'] = 'conda deactivate'
 else:
     raise ValueError("Only conda environments are currently supported")
 
-# create script directory if it doesn't already exist
-try:
-    os.stat(script_dir)
-except FileNotFoundError:
-    os.makedirs(script_dir)
 
-lock_dir_exists = False
+JOBSCRIPT_TEMPLATE = Template(
+"""#!/bin/bash -l
+#PBS -N ${jobname}
+#PBS -q ${queue}
+#PBS -l nodes=${nnodes}:ppn=${ppn}
+#PBS -l walltime=${walltime}
+#PBS -m $email_updates
+#PBS -M $email_addr
+
+echo ---
+job name: $job_name
+echo loading modules: $modules
+module load $modules
+
+echo activating ${env_type} environment: $env_name
+$activate_cmd $env_name
+
+echo calling job script
+$cmd_wrapper $job_command
+echo job script finished
+$deactivate_cmd
+echo ---"""
+)
 
 
-def _create_helper(s, job_command):
-    opens_ix = [i for i, char in enumerate(s) if char == '<']
-    closes_ix = [i for i, char in enumerate(s) if char == '>']
-    # return line if it contains no replaceable options
-    if len(opens_ix) == 0:
-        return s
+class ScriptTemplate:
+    def __init__(self, template, config):
+        self.template = template
+        self.config = config
+        self.hostname = socket.gethostname()
+        self.username = os.environ.get('LOGNAME')
 
-    q = ''
-    index = 0
-    for i in range(len(opens_ix)):
-        q += s[index:opens_ix[i]]
-        unpacked = eval(s[opens_ix[i] + 1:y[i]])
-        q += str(unpacked)
-        index = closes_ix[i] + 1
-    return q
+    def write_scriptfile(self, job_name, job_command):
+        template_vals = self.config
+        template_vals['job_name'] = job_name
+        template_vals['job_command'] = job_command
 
+        script_content = self.template.substitute(template_vals)
+        filepath = opj(template_vals['scriptdir'], job_name)
+        with open(filepath, 'w+') as f:
+            f.write(script_content)
 
-def create_job(name, job_command):
+        return filepath
 
-    template_fd = open(template_script, 'r')
-    job_fname = opj(script_dir, name)
-    new_fd = open(job_fname, 'w+')
+    def lock(self, job_name):
+        lockfile_path = opj(self.config['lockdir'], f'{job_name}.LOCK')
+        try:
+            os.stat(lockfile_path)
+        except FileNotFoundError:
+            
 
-    while True:
-        next_line = template_fd.readline()
-        if len(next_line) == 0:
-            break
-        new_fd.writelines(_create_helper(next_line, job_command))
-    template_fd.close()
-    new_fd.close()
-    return job_fname
 
 
 def lock(lockfile):
@@ -101,7 +110,7 @@ def lock(lockfile):
         return False
     except FileNotFoundError:
         fd = open(lockfile, 'w')
-        fd.writelines('LOCK CREATE TIME: ' + str(dt.datetime.now()) + '\n')
+        fd.writelines('LOCK CREATE TIME: ' + str(dt.now()) + '\n')
         fd.writelines('HOST: ' + socket.gethostname() + '\n')
         fd.writelines('USER: ' + getpass.getuser() + '\n')
         fd.writelines('\n-----\nCONFIG\n-----\n')
@@ -120,11 +129,31 @@ def release(lockfile):
         return False
 
 
+
+script_dir = config['scriptdir']
+lock_dir = config['lockdir']
+template_script = config['template']
+# create directories if they don't already exist
+try:
+    os.stat(script_dir)
+except FileNotFoundError:
+    os.makedirs(script_dir)
+
 try:
     os.stat(lock_dir)
     lock_dir_exists = True
 except FileNotFoundError:
     os.makedirs(lock_dir)
+
+
+script_template = ScriptTemplate(JOBSCRIPT_TEMPLATE, config)
+
+
+for n, c in zip(job_names, job_commands):
+    script_template.lock
+
+
+
 
 locks = list()
 for n, c in zip(job_names, job_commands):
@@ -143,8 +172,8 @@ for n, c in zip(job_names, job_commands):
 
             run(submit_command + " " + next_job, shell=True)
 
-# all jobs have been submitted; release all locks
+# all jobs have been submitted; release all locks...
 for l in locks:
     release(l)
-if not lock_dir_exists:  # remove lock directory if it was created here
-    os.rmdir(lock_dir)
+# ...and remove the lock directory
+os.rmdir(lock_dir)

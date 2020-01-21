@@ -19,7 +19,7 @@
 
 echo ----
 
-echo ACTIVATING MEMORY DYNAMICS VIRTUAL ENVIRONMENT
+echo ACTIVATING VIRTUAL ENVIRONMENT
 module load <config['modules']>
 <config['env_cmd']> <config['env_name']>
 
