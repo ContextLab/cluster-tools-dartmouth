@@ -60,7 +60,7 @@ JOBSCRIPT_TEMPLATE = Template(
 #PBS -M $email_addr
 
 echo ---
-job name: $job_name
+script name: $job_name
 echo loading modules: $modules
 module load $modules
 
