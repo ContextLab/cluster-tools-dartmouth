@@ -6,5 +6,5 @@
 hostname = # name of host where you plan to run jobs
 username = # your username for logging into your cluster account
 password = # your password (NOTE: remember make sure you don't push this to GitHub!)
-submit_command = # command used to submit jobs (mksub if your username starts with f00, otherwise qsub)
+confirm_resubmission = # (true or false) whether or not you want to be prompted before resubmitting jobs identified as having failed
 confirm_overwrite_on_upload = # (true or false) whether or not you want to be prompted when overwriting existing remote files with local changes
