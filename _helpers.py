@@ -44,13 +44,45 @@ def attempt_load_config():
 
 def fmt_remote_commands(commands):
     """
-    Formats a list of shell commands to be run in the SshShell instance.
-    Necessary because underlying Python SSH client (Paramiko) won't run any
-    state changes between commands.  So we run them all at once
+    Formats a list-like iterable of shell commands to be run in the SshShell
+    instance. Necessary because underlying Python SSH client (Paramiko) won't
+    run any state changes between commands.  So we run them all at once.
     """
+    assert hasattr(commands, "__iter__"), \
+        "Commands passed to fmt_remote_commands must be as an iterable (i.e., \
+        list-like) object"
+
     executable = ['bash', '-c']
-    commands_str = ' && '.join(commands)
+    commands_str = [' && '.join(commands)]
+
     return executable + commands_str
+
+
+def get_qstat(remote_shell, options=None):
+    """
+    Return the status of running "qstat" on the cluster, optionally with a
+    filter for the job's status
+    :param remote_shell: spurplus.SshShell instance
+    :param options: (str, defaults to 'a')
+                    options to run along with the "qstat" command. For further
+                    information, run "get_qstat(remote_shell, options=['man'])
+                    locally or "man qstat" from the cluster.
+    :return qstat_output: (str) output of running command on the cluster
+    """
+    if options is None:
+        cmd = ['qstat -a']
+    elif options == 'man':
+        cmd = ['man qstat']
+    elif not options.startswith('-'):
+        cmd = ['qstat -' + options]
+    else:
+        cmd = ['qstat ' + options]
+
+    cmds_fmt = fmt_remote_commands(cmd)
+    return remote_shell.check_output(cmds_fmt)
+
+
+
 
 
 def md5_checksum(filepath):
