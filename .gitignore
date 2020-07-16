@@ -2,5 +2,5 @@
 *.pyc
 *.DS_Store
 configs/*
-!configs/template_config.txt
+!configs/template_config.ini
 notebooks/
