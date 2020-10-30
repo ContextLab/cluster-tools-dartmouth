@@ -1,6 +1,6 @@
-
-.idea/cluster-tools-dartmouth.iml
-
+.idea/*
 *.pyc
-
-*.pyc
+*.DS_Store
+configs/
+!*.gitkeep
+notebooks/
