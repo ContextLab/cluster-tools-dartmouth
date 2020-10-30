@@ -1,6 +1,6 @@
 .idea/*
 *.pyc
 *.DS_Store
-configs/*
-!configs/template_config.ini
+configs/
+!*.gitkeep
 notebooks/

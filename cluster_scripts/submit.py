@@ -8,7 +8,7 @@ from string import Template
 from subprocess import run
 from .config import job_config as config
 
-job_script = opj(dirname(realpath(__file__)), 'embedding_cruncher.py')
+job_script = opj(dirname(realpath(__file__)), 'cruncher.py')
 job_name = config['jobname']
 
 job_commands = list()
@@ -60,7 +60,7 @@ JOBSCRIPT_TEMPLATE = Template(
 #PBS -M $email_addr
 
 echo ---
-script name: $job_name
+echo script name: $job_name
 echo loading modules: $modules
 module load $modules
 

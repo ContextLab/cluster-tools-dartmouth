@@ -53,6 +53,7 @@ def fmt_remote_commands(commands):
         list-like) object"
 
     executable = ['bash', '-c']
+    # TODO: switch to ; sep?
     commands_str = [' && '.join(commands)]
 
     return executable + commands_str
