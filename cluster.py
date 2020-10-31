@@ -1,5 +1,6 @@
 import getpass
 import os
+from io import StringIO
 
 import spur
 import spurplus
@@ -47,12 +48,11 @@ class Cluster:
         self.hostname = hostname
         self.env_additions = env_additions or dict()
         self.environ.update(self.env_additions)
-        self.HOME = self.environ.get('HOME')
 
         if cwd is None:
-            self._CWD = self.HOME
+            self._cwd = self.environ.get('HOME')
         else:
-            self.CWD = cwd
+            self.cwd = cwd
 
         if shell is None:
             self._SHELL = self.environ.get('SHELL')
@@ -66,11 +66,11 @@ class Cluster:
         return self.shell.__exit__(*args)
 
     @property
-    def CWD(self):
-        return self._CWD
+    def cwd(self):
+        return self._cwd
 
-    @CWD.setter
-    def CWD(self, new_cwd):
+    @cwd.setter
+    def cwd(self, new_cwd):
         if not new_cwd.startswith('/'):
             raise AttributeError('working directory must be an absolute path')
         try:
@@ -83,8 +83,7 @@ class Cluster:
             raise AttributeError("Can't set working directory to "
                                  f"{new_cwd}. {reason}")
         else:
-            self._CWD = new_cwd
-            self.environ['PWD'] = self._CWD
+            self._cwd = new_cwd
 
     @property
     def SHELL(self):
@@ -102,7 +101,6 @@ class Cluster:
             except IndexError:
                 raise AttributeError(f"No executable found for {new_shell}. "
                                      f"Available shells are:\n{', '.join(shells_avail)}")
-        self.environ['SHELL'] = self._SHELL
 
     def getenv(self, var, default=None):
         return self.environ.get(var, default=default)
@@ -112,4 +110,40 @@ class Cluster:
 
     def unsetenv(self, var):
         self.environ.pop(var)
+
+    def spawn_process(self, command, stdout=None, stderr=None, stream_encoding='utf-8', tty=False):
+        # might just be shortcut for self.exec_command(block=True)
+        # if stdout/stderr are None, default to just writing to the object
+
+
+
+
+class RemoteProcess:
+    def __init__(
+            self,
+            command,
+            ssh_shell,
+            working_dir=None,
+            stdout=None,
+            stderr=None,
+            stream_encoding='utf-8',
+            env_updates=None,
+            tty=False
+    ):
+        self.command = command
+        self.ssh_shell = ssh_shell
+        self.working_dir = working_dir
+        self.stdout = stdout or StringIO()
+        self.stderr = stderr or StringIO()
+        self.stream_encoding = stream_encoding
+        self.env_updates = env_updates
+        self.has_tty = tty
+
+        self.pid = None
+        self.started = False
+        self.completed = False
+
+
+    def run(self):
+        self.ssh_shell.spawn(command=self.command, cwd=self.working_dir, env_updates=None, stdout=self.stdout, stderr=self.stderr)
 
