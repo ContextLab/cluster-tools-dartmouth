@@ -17,17 +17,16 @@ class Cluster:
             retries=0,
             retry_delay=1,
             shell=None,
-            cwd=None
+            cwd=None,
+            env_additions=None
     ):
-        self.hostname = hostname
-        if self.hostname == 'localhost':
+        # setup connection first for fast failure
+        if hostname == 'localhost':
+            self.shell = spur.LocalShell()
             self.username = getpass.getuser()
             self.port = None
-            self.shell = spur.LocalShell()
             self.environ = dict(os.environ)
         else:
-            self.username = username
-            self.port = port
             self.shell = spurplus.connect_with_retries(
                 hostname=hostname,
                 username=username,
@@ -38,11 +37,18 @@ class Cluster:
                 retries=retries,
                 retry_period=retry_delay
             )
-            env_vars = self.shell.run(['printenv']).output.split('\nBASH_FUNC_module()')[0]
-            self.environ = dict(map(lambda x: x.split('=', 1), env_vars.splitlines()))
+            self.username = username
+            self.port = port
+            env_str = self.shell.run(['printenv']).output.split('\nBASH_FUNC_module()')[0]
+            self.environ = dict(map(lambda x: x.split('=', 1), env_str.splitlines()))
 
         del password
+
+        self.hostname = hostname
+        self.env_additions = env_additions or dict()
+        self.environ.update(self.env_additions)
         self.HOME = self.environ.get('HOME')
+
         if cwd is None:
             self._CWD = self.HOME
         else:
@@ -97,4 +103,13 @@ class Cluster:
                 raise AttributeError(f"No executable found for {new_shell}. "
                                      f"Available shells are:\n{', '.join(shells_avail)}")
         self.environ['SHELL'] = self._SHELL
+
+    def getenv(self, var, default=None):
+        return self.environ.get(var, default=default)
+
+    def putenv(self, var, value):
+        self.environ[var] = value
+
+    def unsetenv(self, var):
+        self.environ.pop(var)
 
