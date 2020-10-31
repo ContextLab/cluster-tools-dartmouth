@@ -1,1 +1,3 @@
-spurplus
+spur>=0.3.20
+spurplus>=2.3.4
+paramiko>=2.7.2
