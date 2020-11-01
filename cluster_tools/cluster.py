@@ -3,11 +3,12 @@ import os
 from io import StringIO
 from pathlib import Path
 from typing import (
+    BinaryIO,
     Optional,
     Union,
     TextIO,
     Dict,
-    Sequence,
+    Sequence
 )
 
 import spur
@@ -15,6 +16,7 @@ import spurplus
 
 
 PathLike = Union[str, Path]
+OneOrMore =
 
 
 class Cluster:
@@ -134,6 +136,9 @@ class Cluster:
         return self.environ.get(var, default=default)
 
     def putenv(self, var: str, value: str) -> None:
+        if var == 'SHELL':
+            # updating SHELL env variable also validates & updates self.SHELL
+            self.SHELL = value
         self.environ[var] = value
 
     def unsetenv(self, var: str) -> None:
@@ -141,15 +146,18 @@ class Cluster:
 
     def spawn_process(
             self,
-            command: Union[str, list],
+            command: Union[str, Sequence[str]],
             stdout: Optional[TextIO] = None,
-            stderr=None,
+            stderr: Optional[TextIO] = None,
             stream_encoding='utf-8',
             tty=False
     ) -> 'RemoteProcess':
         # might just be shortcut for self.exec_command(block=True)
+        # passing list of strings is equivalent to &&-joining them
         # if stdout/stderr are None, default to just writing to the object
 
+        # format command string
+        proc = RemoteProcess()
 
 
 
@@ -157,11 +165,11 @@ class Cluster:
 class RemoteProcess:
     def __init__(
             self,
-            command: Sequence[str],
+            command: Union[str, Sequence[str]],
             ssh_shell: Union[spurplus.SshShell, spur.SshShell],
             working_dir: PathLike = None,
-            stdout: Optional[TextIO] = None,
-            stderr: Optional[TextIO] = None,
+            stdout: Optional[Union[TextIO, BinaryIO]] = None,
+            stderr: Optional[Union[TextIO, BinaryIO]] = None,
             stream_encoding: str = 'utf-8',
             env_updates: Optional[Dict[str, str]] = None,
             tty: bool = False
@@ -183,11 +191,14 @@ class RemoteProcess:
 
     def run(self):
         self._proc = self.ssh_shell.spawn(command=self.command,
-                                          cwd=self.working_dir,
-                                          env_updates=None,
+                                          cwd=str(self.working_dir),
+                                          env_updates=self.env_updates,
                                           stdout=self.stdout,
                                           stderr=self.stderr,
                                           store_pid=True)
-        self.pid =
+        self.pid = self._proc.pid
 
 
+
+# to kill process:
+# runner.proc.send_signal('SIGKILL')

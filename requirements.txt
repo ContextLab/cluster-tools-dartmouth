@@ -1,3 +1,4 @@
 spur>=0.3.20
 spurplus>=2.3.4
 paramiko>=2.7.2
+typing_extensions;python_version<"3.7"
