@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 from os.path import join as opj
 from spurplus import connect_with_retries
 from .cluster_scripts.config import job_config
-from ._helpers import (
+from clustertools._extras.helpers import (
                         attempt_load_config,
                         fmt_remote_commands,
                         get_qstat,
