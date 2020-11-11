@@ -14,7 +14,7 @@ class RemoteProcess:
             self,
             command: OneOrMore[str],
             ssh_shell: Union[spurplus.SshShell, spur.SshShell],
-            working_dir: PathLike = None,
+            working_dir: Optional[PathLike] = None,
             env_updates: Optional[Dict[str, str]] = None,
             stdout: Optional[Union[OneOrMore[TextIO], OneOrMore[BinaryIO]]] = None,
             stderr: Optional[Union[OneOrMore[TextIO], OneOrMore[BinaryIO]]] = None,
@@ -30,7 +30,7 @@ class RemoteProcess:
         # TODO: note that command should be formatted at this point
         self._command = command
         self._ssh_shell = ssh_shell
-        self._working_dir = working_dir
+        self._working_dir = str(working_dir) if working_dir is not None else None
         self._stream_encoding = stream_encoding
         self._env_updates = env_updates
         self._close_streams = close_streams
@@ -62,7 +62,7 @@ class RemoteProcess:
         self.completed = True
         self._callback()
 
-    def _format_user_callback(self, cb, cb_args, cb_kwargs):
+    def _setup_user_callback(self, cb, cb_args, cb_kwargs):
         cb_args = cb_args or tuple()
         cb_kwargs = cb_kwargs or dict()
         if cb_args or cb_kwargs:
@@ -76,7 +76,7 @@ class RemoteProcess:
 
     def run(self):
         self._proc = self._ssh_shell.spawn(command=self._command,
-                                           cwd=str(self._working_dir),
+                                           cwd=self._working_dir,
                                            update_env=self._env_updates,
                                            stdout=self.stdout,
                                            stderr=self.stderr,
@@ -91,7 +91,9 @@ class RemoteProcess:
             self._process_complete_callback()
         else:
             process_observer = AttrObserver(instance=self._proc._channel, attr_name='closed')
-            process_observer.register(self._callback)
+            process_observer.register(self._process_complete_callback)
+
+        return self
 
     def send_signal(self, signal):
         if self.completed:
