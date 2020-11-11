@@ -1,5 +1,5 @@
 import sys
-from io import BufferedIOBase, BytesIO, StringIO, TextIOBase
+from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Sequence
 
