@@ -1,22 +1,18 @@
 import getpass
 import os
 from io import StringIO
-from pathlib import Path
 from typing import (
     BinaryIO,
     Optional,
     Union,
     TextIO,
-    Dict,
-    Sequence
+    Dict
 )
 
 import spur
 import spurplus
 
-
-PathLike = Union[str, Path]
-OneOrMore =
+from clustertools._extras.typing import OneOrMore, PathLike
 
 
 class Cluster:
@@ -30,27 +26,12 @@ class Cluster:
             timeout: int = 60,
             retries: int = 0,
             retry_delay: int = 1,
-            shell: Optional[PathLike] = None,
+            executable: Optional[PathLike] = None,
             cwd: Optional[PathLike] = None,
             env_additions: Optional[Dict[str, str]] = None
     ) -> None:
-        """
-        TODO: add docstring
-
-        Parameters
-        ----------
-        hostname
-        username
-        password
-        use_key
-        port
-        timeout
-        retries
-        retry_delay
-        shell
-        cwd
-        env_additions
-        """
+        # TODO: add docstring
+        # TODO: separate self.environ into class with validations, session/persistent setting, etc.
         # setup connection first for fast failure
         if hostname == 'localhost':
             self.shell = spur.LocalShell()
@@ -66,26 +47,29 @@ class Cluster:
                                                        connect_timeout=timeout,
                                                        retries=retries,
                                                        retry_period=retry_delay)
+            del password
+
             self.username = username
             self.port = port
+            # TODO: a more robust solution for this in case BASH_FUNC_module isn't last
             env_str = self.shell.run(['printenv']).output.split('\nBASH_FUNC_module()')[0]
-            self.environ = dict(map(lambda x: x.split('=', 1), env_str.splitlines()))
-
-        del password
+            self.environ = dict(map(lambda x: x.split('=', maxsplit=1), env_str.splitlines()))
 
         self.hostname = hostname
         self.env_additions = env_additions or dict()
         self.environ.update(self.env_additions)
 
         if cwd is None:
+            # bypass validation if using HOME from environment
             self._cwd = self.environ.get('HOME')
         else:
+            # otherwise, call setter
             self.cwd = cwd
 
-        if shell is None:
-            self._SHELL = self.environ.get('SHELL')
+        if executable is None:
+            self._executable = self.environ.get('SHELL')
         else:
-            self.SHELL = shell
+            self.executable = executable
 
     def __enter__(self):
         return self
@@ -99,6 +83,7 @@ class Cluster:
 
     @cwd.setter
     def cwd(self, new_cwd: PathLike) -> None:
+        # TODO: add docstring
         new_cwd = str(new_cwd)
         if not new_cwd.startswith('/'):
             raise AttributeError('working directory must be an absolute path')
@@ -115,30 +100,39 @@ class Cluster:
             self._cwd = new_cwd
 
     @property
-    def SHELL(self) -> str:
-        return self._SHELL
+    def executable(self) -> str:
+        return self._executable
 
-    @SHELL.setter
-    def SHELL(self, new_shell: PathLike) -> None:
-        new_shell = str(new_shell)
-        shells_avail = self.shell.run(['cat', '/etc/shells']).output.splitlines()
-        if new_shell in shells_avail:
-            self._SHELL = new_shell
+    @executable.setter
+    def executable(self, new_exe: PathLike) -> None:
+        # TODO: add docstring
+        new_exe = str(new_exe)
+        exes_avail = self.shell.run(['cat', '/etc/shells']).output.splitlines()
+        if new_exe in exes_avail:
+            # full path was passed (e.g., '/bin/bash')
+            self._executable = new_exe
         else:
+            # shorthand was passed (e.g., 'bash')
             try:
-                first_match = [s.split(['/'])[-1] for s in shells_avail].index(new_shell)
-                self._SHELL = shells_avail[first_match]
-            except IndexError:
-                raise AttributeError(f"No executable found for {new_shell}. "
-                                     f"Available shells are:\n{', '.join(shells_avail)}")
+                # get full path of first matching option in /etc/shells
+                first_match = next(s for s in exes_avail if s.endswith(new_exe))
+            except StopIteration:
+                raise AttributeError(f"No executable found for {new_exe}. "
+                                     f"Available shells are:\n{', '.join(exes_avail)}")
+            else:
+                # if shorthand was passed, print full path to confirm
+                print(f"switched executable to '{first_match}'")
+                self._executable = first_match
 
     def getenv(self, var: str, default: Optional[str] = None) -> str:
+        # TODO: add docstring
         return self.environ.get(var, default=default)
 
     def putenv(self, var: str, value: str) -> None:
+        # TODO: add docstring
         if var == 'SHELL':
             # updating SHELL env variable also validates & updates self.SHELL
-            self.SHELL = value
+            self.executable = value
         self.environ[var] = value
 
     def unsetenv(self, var: str) -> None:
@@ -146,13 +140,13 @@ class Cluster:
 
     def spawn_process(
             self,
-            command: Union[str, Sequence[str]],
-            stdout: Optional[TextIO] = None,
-            stderr: Optional[TextIO] = None,
+            command: OneOrMore[str],
+            stdout: Optional[OneOrMore[TextIO]] = None,
+            stderr: Optional[OneOrMore[TextIO]] = None,
             stream_encoding='utf-8',
             tty=False
     ) -> 'RemoteProcess':
-        # might just be shortcut for self.exec_command(block=True)
+        # might just be base function for self.exec_command(block=True/False).
         # passing list of strings is equivalent to &&-joining them
         # if stdout/stderr are None, default to just writing to the object
 
@@ -162,41 +156,7 @@ class Cluster:
 
 
 
-class RemoteProcess:
-    def __init__(
-            self,
-            command: Union[str, Sequence[str]],
-            ssh_shell: Union[spurplus.SshShell, spur.SshShell],
-            working_dir: PathLike = None,
-            stdout: Optional[Union[TextIO, BinaryIO]] = None,
-            stderr: Optional[Union[TextIO, BinaryIO]] = None,
-            stream_encoding: str = 'utf-8',
-            env_updates: Optional[Dict[str, str]] = None,
-            tty: bool = False
-    ) -> None:
-        self.command = command
-        self.ssh_shell = ssh_shell
-        self.working_dir = working_dir
-        self.stdout = stdout or StringIO()
-        self.stderr = stderr or StringIO()
-        self.stream_encoding = stream_encoding
-        self.env_updates = env_updates
-        self.has_tty = tty
 
-        self._proc = None
-        self.pid = None
-
-        self.started = False
-        self.completed = False
-
-    def run(self):
-        self._proc = self.ssh_shell.spawn(command=self.command,
-                                          cwd=str(self.working_dir),
-                                          env_updates=self.env_updates,
-                                          stdout=self.stdout,
-                                          stderr=self.stderr,
-                                          store_pid=True)
-        self.pid = self._proc.pid
 
 
 
