@@ -1,4 +1,4 @@
-from cluster_tools.cluster import Cluster
+from clustertools.cluster import Cluster
 
 
 version_info = (0, 0, 1)
