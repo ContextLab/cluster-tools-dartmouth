@@ -1,0 +1,2 @@
+class ClusterToolsError(Exception):
+    pass
