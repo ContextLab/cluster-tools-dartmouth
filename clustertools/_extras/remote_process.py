@@ -1,4 +1,5 @@
 import functools
+from threading import Thread
 from typing import Callable, BinaryIO, Dict, Optional, TextIO, Tuple, Union
 
 import spur
@@ -27,7 +28,8 @@ class RemoteProcess:
             callback_args: Optional[Tuple] = None,
             callback_kwargs: Optional[Dict] = None
     ) -> None:
-        # TODO: note that command should be formatted at this point
+        # TODO: add docstring
+        #  also note that command should be pre-formatted at this point
         self._command = command
         self._ssh_shell = ssh_shell
         self._working_dir = str(working_dir) if working_dir is not None else None
@@ -40,24 +42,24 @@ class RemoteProcess:
         self._callback = self._setup_user_callback(callback,
                                                    callback_args,
                                                    callback_kwargs)
-
+        # attributes set later
         self.started = False
         self.completed = False
         self._proc: Optional[spur.ssh.SshProcess] = None
         self.pid: Optional[int] = None
+        self._thread: Optional[Thread] = None
         self.return_code: Optional[int] = None
-
         # open streams as late as possible
         self.stdout = MultiStreamWrapper(stdout, encoding=stream_encoding)
         self.stderr = MultiStreamWrapper(stderr, encoding=stream_encoding)
 
     def _process_complete_callback(self):
+        # returns once process is complete and sets self._proc._result
+        self._proc.wait_for_result()
         if self._close_streams:
             self.stdout.close()
             self.stderr.close()
 
-        # returns immediately when process is complete and sets self._proc._result
-        self._proc.wait_for_result()
         self.return_code = self._proc._result.return_code
         self.completed = True
         self._callback()
@@ -84,16 +86,26 @@ class RemoteProcess:
                                            allow_error=self._allow_error,
                                            use_pty=self._use_pty,
                                            store_pid=True)
-        self.pid = self._proc.pid
         self.started = True
+        self.pid = self._proc.pid
         if self._wait:
-            self._proc.wait_for_result()
             self._process_complete_callback()
         else:
-            process_observer = AttrObserver(instance=self._proc._channel, attr_name='closed')
-            process_observer.register(self._process_complete_callback)
+            self._thread = Thread(target=self._process_complete_callback,
+                                  name='SshProcessMonitor',
+                                  daemon=True)
+            self._thread.start()
 
         return self
+
+    def stdin_write(self, value):
+        if self.completed:
+            raise SshProcessError("Unable to send input to a completed process")
+        elif not self.started:
+            raise SshProcessError("The processes has not been started. "
+                                  "Use 'RemoteProcess.run()' to start the process.")
+
+        self._proc.stdin_write(value=value)
 
     def send_signal(self, signal):
         if self.completed:
@@ -104,6 +116,9 @@ class RemoteProcess:
 
         self._proc.send_signal(signal=signal)
 
+    def hangup(self):
+        self.send_signal('SIGHUP')
+
     def interrupt(self):
         self.send_signal('SIGINT')
 
@@ -113,50 +128,3 @@ class RemoteProcess:
     def terminate(self):
         self.send_signal('SIGTERM')
 
-
-
-class AttrObserver:
-    def __init__(self, instance, attr_name):
-        self.observed_attr = attr_name
-        self.observed_instance = instance
-        self.observed_class = instance.__class__
-        self.instance_observers = {
-            instance: {
-                'initial_value': getattr(instance, attr_name),
-                'current_value': getattr(instance, attr_name)
-            }
-        }
-
-    def __get__(self, inst, cls=None):
-        # TODO: prevent inheritance?
-        if inst is None:
-            return self
-        elif inst in self.instance_observers:
-            return self.instance_observers[inst]['current_value']
-        else:
-            return inst.__dict__[self.observed_attr]
-
-    def __set__(self, inst, val):
-        if inst in self.instance_observers:
-            self.instance_observers[inst]['current_value'] = val
-            self.instance_observers[inst]['callback']()
-        else:
-            inst.__dict__[self.observed_attr] = val
-
-    def register(self, callback):
-        self.instance_observers[self.observed_instance]['callback'] = callback
-        # check and see if the attribute exists in the class-level __dict__
-        curr_class_attr = getattr(self.observed_class, self.observed_attr, None)
-        if isinstance(curr_class_attr, self.__class__):
-            # if it does and it's an AttrObserver, add an observer
-            # tracking this specific instance to the existing descriptor
-            # object (descriptor protocol requires binding to the class
-            # object, so there can be only one per attribute name)
-            if self.observed_instance in curr_class_attr.instance_observers:
-                raise AttributeError("Can't register multiple observers to the "
-                                     "same attribute of the same instance")
-
-            curr_class_attr.instance_observers.update(self.instance_observers)
-        else:
-            # otherwise, register a new data descriptor object on the class
-            setattr(self.observed_class, self.observed_attr, self)
