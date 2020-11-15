@@ -70,7 +70,11 @@ class RemoteProcess:
         finally:
             self.completed = True
             self.return_code = self._proc._result.return_code
-            self.callback_return = self._callback()
+            if self.return_code == 0:
+                # only run callback if no errors raised
+                self.callback_return = self._callback()
+            elif not self._allow_error:
+                raise self._proc._result.to_error()
 
     def _setup_user_callback(self, cb, cb_args, cb_kwargs):
         if cb_args or cb_kwargs:
@@ -92,7 +96,7 @@ class RemoteProcess:
                                            stdout=self.stdout,
                                            stderr=self.stderr,
                                            encoding=self._stream_encoding,
-                                           allow_error=self._allow_error,
+                                           allow_error=True,
                                            use_pty=self._use_pty,
                                            store_pid=True)
         self.started = True
