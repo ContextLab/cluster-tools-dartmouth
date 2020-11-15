@@ -1,10 +1,12 @@
 import getpass
 import os
+import warnings
 from pathlib import Path
-from typing import BinaryIO, Callable, Optional, Union, TextIO, Tuple, Dict
+from typing import Callable, Optional, Union, Tuple, Dict
 
 import spur
 import spurplus
+from paramiko import SFTPAttributes
 
 from clustertools._extras.remote_process import RemoteProcess
 from clustertools._extras.typing import (MswStderrDest,
@@ -76,7 +78,7 @@ class Cluster:
         return self
 
     def __exit__(self, *args):
-        return self.shell.__exit__(*args)
+        return self.close()
 
     @property
     def cwd(self) -> str:
@@ -123,9 +125,13 @@ class Cluster:
                 print(f"switched to: '{first_match}'")
                 self._executable = first_match
 
-    ########################################
-    #        ENVIRONMENT MANAGEMENT        #
-    ########################################
+    def close(self) -> None:
+        # TODO: add docstring
+        return self.shell.close()
+
+    ##########################################################
+    #                 ENVIRONMENT MANAGEMENT                 #
+    ##########################################################
     # analogues to `os` module's `os.environ` modifier functions ####
     def getenv(self, var: str, default: Optional[str] = None) -> str:
         # TODO: add docstring
@@ -143,19 +149,153 @@ class Cluster:
     def unsetenv(self, var: str) -> None:
         self.environ.pop(str(var))
 
-    ########################################
-    #        FILE SYSTEM NAVIGATION        #
-    ########################################
-    def listdir(self, path):
-        pass
+    ##########################################################
+    #          FILE SYSTEM NAVIGATION & INTERACTION          #
+    ##########################################################
+    def cat(self, path: PathLike) -> str:
+        # TODO: add docstring
+        path = str(self.resolve_path(path))
+        return self.shell.check_output(['cat', path])
 
-    def chdir(self, path):
-        pass
-    # listdir, chdir, mkdir, is_dir, is_file, exists, chown, chmod, touch, cat, etc...
+    def chdir(self, path: PathLike) -> None:
+        # TODO: add docstring
+        path = self.resolve_path(path)
+        # functionally equivalent to setting self.cwd property with checks
+        self.cwd = path
 
-    ########################################
-    #       SHELL COMMAND EXECUTION        #
-    ########################################
+    def chmod(self, path: PathLike, mode: int) -> None:
+        raise NotImplementedError
+
+    def chown(self, path: PathLike, uid: int, gid: int) -> None:
+        raise NotImplementedError
+
+    def exists(self, path: PathLike) -> bool:
+        # TODO: add docstring
+        path = self.resolve_path(path)
+        return self.shell.exists(remote_path=path)
+
+    def is_dir(self, path: PathLike) -> bool:
+        # TODO: add docstring
+        try:
+            return self.shell.is_dir(remote_path=path)
+        except FileNotFoundError:
+            # spurplus.SshShell.is_dir raises FileNotFoundError if path
+            # doesn't exist; pathlib.Path.is_dir returns False. pathlib
+            # behavior is more logical
+            return False
+
+    def is_file(self, path: PathLike) -> bool:
+        # TODO: add docstring
+        # no straightforward way to do this between spurplus/spur/paramiko,
+        # so going for the roundabout way
+        full_path = self.resolve_path(path)
+        output = self.shell.run([self.executable, '-c', f'test -f {full_path}'],
+                                allow_error=True)
+        return not bool(output.return_code)
+
+    def listdir(self, path: PathLike = '.') -> None:
+        # TODO: add docstring
+        path = str(self.resolve_path(path))
+        self.shell.as_sftp().listdir(path)
+
+    def mkdir(
+            self,
+            path: PathLike,
+            mode: int = 16877,
+            parents: bool = False,
+            exist_ok: bool = False
+    ) -> None:
+        # TODO: add docstring
+        # mode 16877, octal equiv: '0o40755' (user has full rights, all
+        # others can read/traverse)
+        self.shell.mkdir(remote_path=path,
+                         mode=mode,
+                         parents=parents,
+                         exist_ok=exist_ok)
+
+    def read(self, path: PathLike, encoding: Union[str, None] = 'utf-8') -> Union[str, bytes]:
+        # TODO: add docstring
+        path = self.resolve_path(path)
+        if encoding is None:
+            return self.shell.read_bytes(remote_path=path)
+        else:
+            return self.shell.read_text(remote_path=path, encoding=encoding)
+
+    def resolve_path(self, path: PathLike) -> PathLike:
+        # TODO: add docstring
+        # os.path.expanduser
+        orig_type = type(path)
+        path = str(path)
+        if path == '~' or path.startswith('~/'):
+            path = path.replace('~', '$HOME', 1)
+
+        # make path relative to cwd
+        if not path.startswith(('/', '$')):
+            path = os.path.join(self.cwd, path)
+
+        # os.path.expandvars
+        if '$' in path:
+            parts = path.split('/')
+            for ix, p in enumerate(parts):
+                if p.startswith('$'):
+                    parts[ix] = self.getenv(p.replace('$', '', 1), default=p)
+
+            # not using os.path.join actually makes dealing with scenario
+            # where ~ or env var ($SOMEVAR/etc/etc) comes first easier
+            path = '/'.join(*parts)
+            path = path.replace('//', '/')
+
+        return orig_type(self.shell.as_sftp().normalize(path))
+
+    def stat(self, path: PathLike = None) -> SFTPAttributes:
+        path = self.resolve_path(path)
+        return self.shell.stat(remote_path=path)
+
+    def touch(self, path: PathLike, mode=33188, exist_ok=True):
+        # TODO: add docstring.
+        #  Functions like Pathlib.touch(). if file exists and exist_ok
+        #  is True, calls equiv to os.utime to update atime and mtime
+        #  like touch does.  Can't be used to change mode on existing
+        #  file; use chmod instead
+        # mode 33188, octal equiv: '0o100644'
+        path = str(self.resolve_path(path))
+        if self.exists(path):
+            self.shell.as_sftp()._sftp.utime(path, times=None)
+        else:
+            self.write(path, content='', encoding='utf-8')
+            curr_mode = self.shell.stat(path).st_mode
+            if curr_mode != mode:
+                try:
+                    self.chmod(path, mode)
+                except NotImplementedError:
+                    warnings.warn('chmod/chown functionality not implemented. '
+                                  f'File created with permissions: {curr_mode}')
+
+    def write(
+            self,
+            path: PathLike,
+            content: Union[str, bytes],
+            encoding: Union[str, None] = 'utf-8',
+            create_directories: bool = True,
+            consistent: bool = True
+    ) -> None:
+        # TODO: add docstring
+        path = self.resolve_path(path)
+        if encoding is None:
+            self.shell.write_bytes(remote_path=path,
+                                   data=content,
+                                   create_directories=create_directories,
+                                   consistent=consistent)
+        else:
+            self.shell.write_text(remote_path=path,
+                                  text=content,
+                                  encoding=encoding,
+                                  create_directories=create_directories,
+                                  consistent=consistent)
+
+    ##########################################################
+    #                SHELL COMMAND EXECUTION                 #
+    ##########################################################
     # command-executing methods. Three levels of simplicity vs control,
     # sort of analogous to:
     #   self.check_output()     --> subprocess.check_output()
@@ -191,7 +331,6 @@ class Cluster:
                                   tmp_env=tmp_env,
                                   allow_error=allow_error,
                                   wait=True)
-
 
     def spawn_process(
             self,
@@ -256,6 +395,3 @@ class Cluster:
                              callback_args=callback_args,
                              callback_kwargs=callback_kwargs)
         return proc.run()
-
-# to kill process:
-# runner.proc.send_signal('SIGKILL')

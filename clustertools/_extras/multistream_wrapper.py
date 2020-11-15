@@ -13,7 +13,7 @@ class MultiStreamWrapper:
     def __init__(
             self,
             destinations: Optional[Union[OneOrMore[MswStdoutDest], OneOrMore[MswStderrDest]]],
-            encoding: Union[str, None] = 'utf-8'
+            encoding: Optional[str] = 'utf-8'
     ):
         if destinations is None:
             destinations = tuple()
