@@ -213,13 +213,9 @@ class Cluster:
                          parents=parents,
                          exist_ok=exist_ok)
 
-    def read(self, path: PathLike, encoding: Union[str, None] = 'utf-8') -> Union[str, bytes]:
-        # TODO: add docstring
+    def remove(self, path: PathLike, recursive: bool = False) -> None:
         path = self.resolve_path(path)
-        if encoding is None:
-            return self.shell.read_bytes(remote_path=path)
-        else:
-            return self.shell.read_text(remote_path=path, encoding=encoding)
+        self.shell.remove(remote_path=path, recursive=recursive)
 
     def resolve_path(self, path: PathLike) -> PathLike:
         # TODO: add docstring
@@ -271,6 +267,48 @@ class Cluster:
                     warnings.warn('chmod/chown functionality not implemented. '
                                   f'File created with permissions: {curr_mode}')
 
+    ##########################################################
+    #                 FILE TRANSFER & ACCESS                 #
+    ##########################################################
+    def get(
+            self,
+            remote_path: PathLike,
+            local_path: PathLike,
+            create_directories: bool = True,
+            consistent: bool = True
+    ) -> None:
+        # TODO: add docstring
+        remote_path = self.resolve_path(remote_path)
+        # I don't understand why they STILL haven't implemented expandvars for pathlib...
+        local_path = Path(os.path.expandvars(Path(local_path).expanduser())).resolve()
+        self.shell.get(remote_path=remote_path,
+                       local_path=local_path,
+                       create_directories=create_directories,
+                       consistent=consistent)
+
+    def put(
+            self,
+            local_path: PathLike = None,
+            remote_path: PathLike = None,
+            create_directories: bool = True,
+            consistent: bool = True
+    ) -> None:
+        # TODO: add docstring
+        local_path = Path(os.path.expandvars(Path(local_path).expanduser())).resolve()
+        remote_path = self.resolve_path(remote_path)
+        self.shell.put(local_path=local_path,
+                       remote_path=remote_path,
+                       create_directories=create_directories,
+                       consistent=consistent)
+
+    def read(self, path: PathLike, encoding: Union[str, None] = 'utf-8') -> Union[str, bytes]:
+        # TODO: add docstring
+        path = self.resolve_path(path)
+        if encoding is None:
+            return self.shell.read_bytes(remote_path=path)
+        else:
+            return self.shell.read_text(remote_path=path, encoding=encoding)
+
     def write(
             self,
             path: PathLike,
@@ -292,6 +330,7 @@ class Cluster:
                                   encoding=encoding,
                                   create_directories=create_directories,
                                   consistent=consistent)
+
 
     ##########################################################
     #                SHELL COMMAND EXECUTION                 #
