@@ -1,6 +1,6 @@
 import functools
 from threading import Thread
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import spur
 import spurplus
@@ -55,6 +55,7 @@ class RemoteProcess:
         self.pid: Optional[int] = None
         self._thread: Optional[Thread] = None
         self.return_code: Optional[int] = None
+        self.callback_return: Any = None
         # open streams as late as possible
         self.stdout = MultiStreamWrapper(stdout, encoding=stream_encoding)
         self.stderr = MultiStreamWrapper(stderr, encoding=stream_encoding)
@@ -62,25 +63,27 @@ class RemoteProcess:
     def _process_complete_callback(self):
         # returns once process is complete and sets self._proc._result
         self._proc.wait_for_result()
-        if self._close_streams:
-            self.stdout.close()
-            self.stderr.close()
-
-        self.return_code = self._proc._result.return_code
-        self.completed = True
-        self._callback()
+        try:
+            if self._close_streams:
+                self.stdout.close()
+                self.stderr.close()
+        finally:
+            self.completed = True
+            self.return_code = self._proc._result.return_code
+            self.callback_return = self._callback()
 
     def _setup_user_callback(self, cb, cb_args, cb_kwargs):
-        cb_args = cb_args or tuple()
-        cb_kwargs = cb_kwargs or dict()
         if cb_args or cb_kwargs:
             if cb is None:
                 raise ValueError("Callback arguments passed without callable")
-            else:
-                return functools.partial(cb, *cb_args, **cb_kwargs)
+            cb_args = cb_args or tuple()
+            cb_kwargs = cb_kwargs or dict()
+            return functools.partial(cb, *cb_args, **cb_kwargs)
         elif cb:
             return cb
-        return lambda: None
+        else:
+            def _placeholder(): pass
+            return _placeholder
 
     def run(self):
         self._proc = self._ssh_shell.spawn(command=self._command,
@@ -103,6 +106,23 @@ class RemoteProcess:
             self._thread.start()
 
         return self
+
+    def run_callback(self, update_stored=False):
+        if not self.started:
+            raise SshProcessError("The processes has not been started. "
+                                  "Use 'RemoteProcess.run()' to start the process.")
+        elif not self.completed:
+            raise SshProcessError("Can't run callback until the process is "
+                                  "completed. You can signal the process to "
+                                  "stop using one of:\n"
+                                  "'RemoteProcess.interrupt()', "
+                                  "'RemoteProcess.terminate()', "
+                                  "'RemoteProcess.kill()'")
+        new_result = self._callback()
+        if update_stored:
+            self.callback_return = new_result
+
+        return new_result
 
     def stdin_write(self, value: str) -> None:
         if self.completed:
@@ -133,4 +153,3 @@ class RemoteProcess:
 
     def terminate(self):
         self.send_signal('SIGTERM')
-
