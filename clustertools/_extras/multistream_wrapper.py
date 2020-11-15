@@ -1,14 +1,20 @@
 import sys
 from io import BytesIO, StringIO
 from pathlib import Path
-from typing import Sequence
+from typing import Optional, Sequence, Union
+
+from clustertools._extras.typing import MswStderrDest, MswStdoutDest, OneOrMore
 
 
 class MultiStreamWrapper:
     # notes:
     # 1. sys.stdout & sys.stderr will always write strings, even when passed bytes
     # 2. always writes to files with no buffering
-    def __init__(self, destinations, encoding='utf-8'):
+    def __init__(
+            self,
+            destinations: Optional[Union[OneOrMore[MswStdoutDest], OneOrMore[MswStderrDest]]],
+            encoding: Optional[str] = 'utf-8'
+    ):
         if destinations is None:
             destinations = tuple()
         elif (
@@ -17,7 +23,8 @@ class MultiStreamWrapper:
         ):
             destinations = [destinations]
 
-        # kwargs passed to built-in open for path-like destinations
+        # set in-memory IO class & kwargs passed to built-in `open()`
+        # for path-like `destinations`
         if encoding is None:
             # binary content
             memory_stream_class = BytesIO

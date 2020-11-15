@@ -1,15 +1,21 @@
 import functools
 from threading import Thread
-from typing import Callable, BinaryIO, Dict, Optional, TextIO, Tuple, Union
+from typing import Callable, Dict, Optional, Tuple, Union
 
 import spur
 import spurplus
 
 from clustertools._extras.exceptions import SshProcessError
 from clustertools._extras.multistream_wrapper import MultiStreamWrapper
-from clustertools._extras.typing import OneOrMore, PathLike
+from clustertools._extras.typing import (MswStderrDest,
+                                         MswStdoutDest,
+                                         NoneOrMore,
+                                         OneOrMore,
+                                         PathLike)
 
 
+# TODO: ensure that all_error=False raises exception in main thread when wait=False
+# TODO?: change allow_error={True,False} to on_error={'raise','warn','allow'/'ignore'/'suppress'}
 class RemoteProcess:
     def __init__(
             self,
@@ -17,12 +23,12 @@ class RemoteProcess:
             ssh_shell: Union[spurplus.SshShell, spur.SshShell],
             working_dir: Optional[PathLike] = None,
             env_updates: Optional[Dict[str, str]] = None,
-            stdout: Optional[Union[OneOrMore[TextIO], OneOrMore[BinaryIO]]] = None,
-            stderr: Optional[Union[OneOrMore[TextIO], OneOrMore[BinaryIO]]] = None,
+            stdout: NoneOrMore[MswStdoutDest] = None,
+            stderr: NoneOrMore[MswStderrDest] = None,
             stream_encoding: Union[str, None] = 'utf-8',
             close_streams: bool = True,
             wait: bool = False,
-            allow_error: bool = False,
+            allow_error: bool = True,
             use_pty: bool = False,
             callback: Optional[Callable] = None,
             callback_args: Optional[Tuple] = None,
@@ -98,7 +104,7 @@ class RemoteProcess:
 
         return self
 
-    def stdin_write(self, value):
+    def stdin_write(self, value: str) -> None:
         if self.completed:
             raise SshProcessError("Unable to send input to a completed process")
         elif not self.started:
@@ -107,7 +113,7 @@ class RemoteProcess:
 
         self._proc.stdin_write(value=value)
 
-    def send_signal(self, signal):
+    def send_signal(self, signal: Union[str, int]) -> None:
         if self.completed:
             raise SshProcessError("Unable to send signal to a completed process")
         elif not self.started:
