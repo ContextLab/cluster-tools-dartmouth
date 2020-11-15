@@ -28,7 +28,7 @@ class RemoteProcess:
             stream_encoding: Union[str, None] = 'utf-8',
             close_streams: bool = True,
             wait: bool = False,
-            allow_error: bool = True,
+            allow_error: bool = False,
             use_pty: bool = False,
             callback: Optional[Callable] = None,
             callback_args: Optional[Tuple] = None,
