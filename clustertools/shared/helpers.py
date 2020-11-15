@@ -42,23 +42,6 @@ def attempt_load_config():
         location").with_traceback(e.__traceback__)
 
 
-def fmt_remote_commands(commands):
-    """
-    Formats a list-like iterable of shell commands to be run in the SshShell
-    instance. Necessary because underlying Python SSH client (Paramiko) won't
-    run any state changes between commands.  So we run them all at once.
-    """
-    assert hasattr(commands, "__iter__"), \
-        "Commands passed to fmt_remote_commands must be as an iterable (i.e., \
-        list-like) object"
-
-    executable = ['bash', '-c']
-    # TODO: switch to ; sep?
-    commands_str = [' && '.join(commands)]
-
-    return executable + commands_str
-
-
 def get_qstat(remote_shell, options=None):
     """
     Return the status of running "qstat" on the cluster, optionally with a

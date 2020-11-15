@@ -10,5 +10,5 @@ OneOrMore = Union[T, Sequence[T]]
 NoneOrMore = Optional[OneOrMore]    # equivalent to Union[None, OneOrMore]
 
 MswDestBase = TypeVar('MswDestBase', BinaryIO, Path, str, TextIO)
-MswStdoutDest = Union[MswDestBase, sys.stdout, Literal['stdout']]
-MswStderrDest = Union[MswDestBase, sys.stderr, Literal['stderr']]
+MswStdoutDest = Union[MswDestBase, type(sys.stdout), Literal['stdout']]
+MswStderrDest = Union[MswDestBase, type(sys.stderr), Literal['stderr']]

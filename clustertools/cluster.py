@@ -8,6 +8,7 @@ import spur
 import spurplus
 from paramiko import SFTPAttributes
 
+from clustertools.batch_submission import BatchSubmission
 from clustertools.shared.remote_process import RemoteProcess
 from clustertools.shared.typing import (MswStderrDest,
                                         MswStdoutDest,
@@ -30,7 +31,8 @@ class Cluster:
             retry_delay: int = 1,
             executable: Optional[PathLike] = None,
             cwd: Optional[PathLike] = None,
-            env_additions: Optional[Dict[str, str]] = None
+            env_additions: Optional[Dict[str, str]] = None,
+            submitter: Optional[BatchSubmission] = None
     ) -> None:
         # TODO: add docstring
         # TODO: separate self.environ into class with validations, session/persistent setting, etc.
@@ -73,6 +75,8 @@ class Cluster:
         else:
             # otherwise, run setter
             self.executable = executable
+
+        self.submitter = submitter
 
     def __enter__(self):
         return self
@@ -439,4 +443,17 @@ class Cluster:
 
     ##########################################################
     #                     JOB SUBMISSION                     #
+    ##########################################################
+    def submit(self, **kwargs):
+
+        pass
+
+    ##########################################################
+    #                     JOB MONITORING                     #
+    ##########################################################
+    def monitor(self):
+        pass
+
+    ##########################################################
+    #                 JOB OUTPUT COLLECTION                  #
     ##########################################################
