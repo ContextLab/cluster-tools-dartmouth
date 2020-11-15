@@ -1,18 +1,18 @@
 import getpass
 import os
-from io import StringIO
-from typing import (
-    BinaryIO,
-    Optional,
-    Union,
-    TextIO,
-    Dict
-)
+from pathlib import Path
+from typing import BinaryIO, Callable, Optional, Union, TextIO, Tuple, Dict
 
 import spur
 import spurplus
 
-from clustertools._extras.typing import OneOrMore, PathLike
+from clustertools._extras.remote_process import RemoteProcess
+from clustertools._extras.typing import (MswStderrDest,
+                                         MswStdoutDest,
+                                         NoneOrMore,
+                                         OneOrMore,
+                                         PathLike,
+                                         Sequence)
 
 
 class Cluster:
@@ -36,8 +36,8 @@ class Cluster:
         if hostname == 'localhost':
             self.shell = spur.LocalShell()
             self.username = getpass.getuser()
-            self.port = None
             self.environ = dict(os.environ)
+            self.port: Optional[int] = None
         else:
             self.shell = spurplus.connect_with_retries(hostname=hostname,
                                                        username=username,
@@ -48,7 +48,6 @@ class Cluster:
                                                        retries=retries,
                                                        retry_period=retry_delay)
             del password
-
             self.username = username
             self.port = port
             # TODO: a more robust solution for this in case BASH_FUNC_module isn't last
@@ -60,15 +59,17 @@ class Cluster:
         self.environ.update(self.env_additions)
 
         if cwd is None:
-            # bypass validation if using HOME from environment
-            self._cwd = self.environ.get('HOME')
+            # skip validation if defaulting to $HOME
+            self._cwd = Path(self.environ.get('HOME'))
         else:
-            # otherwise, call setter
+            # otherwise, run setter
             self.cwd = cwd
 
         if executable is None:
+            # skip validation if defaulting to $SHELL
             self._executable = self.environ.get('SHELL')
         else:
+            # otherwise, run setter
             self.executable = executable
 
     def __enter__(self):
@@ -79,23 +80,21 @@ class Cluster:
 
     @property
     def cwd(self) -> str:
-        return self._cwd
+        return str(self._cwd)
 
     @cwd.setter
     def cwd(self, new_cwd: PathLike) -> None:
         # TODO: add docstring
-        new_cwd = str(new_cwd)
-        if not new_cwd.startswith('/'):
+        new_cwd = Path(new_cwd)
+        if not new_cwd.is_absolute():
             raise AttributeError('working directory must be an absolute path')
         try:
             assert self.shell.is_dir(new_cwd)
-        except (AssertionError, FileNotFoundError) as e:
-            if isinstance(e, AssertionError):
-                reason = f"Path points to a file"
-            else:
-                reason = f"Path does not exist"
-            raise AttributeError("Can't set working directory to "
-                                 f"{new_cwd}. {reason}")
+        except AssertionError as e:
+            # new_cwd points to a file
+            raise NotADirectoryError(f"{new_cwd}: Not a directory") from e
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"{new_cwd}: No such file or directory") from e
         else:
             self._cwd = new_cwd
 
@@ -121,44 +120,142 @@ class Cluster:
                                      f"Available shells are:\n{', '.join(exes_avail)}")
             else:
                 # if shorthand was passed, print full path to confirm
-                print(f"switched executable to '{first_match}'")
+                print(f"switched to: '{first_match}'")
                 self._executable = first_match
 
+    ########################################
+    #        ENVIRONMENT MANAGEMENT        #
+    ########################################
+    # analogues to `os` module's `os.environ` modifier functions ####
     def getenv(self, var: str, default: Optional[str] = None) -> str:
         # TODO: add docstring
         return self.environ.get(var, default=default)
 
     def putenv(self, var: str, value: str) -> None:
         # TODO: add docstring
+        # all environ values are stored and retrieved as strings
+        var, value = str(var), str(value)
         if var == 'SHELL':
-            # updating SHELL env variable also validates & updates self.SHELL
+            # updating $SHELL also validates & updates self.SHELL
             self.executable = value
         self.environ[var] = value
 
     def unsetenv(self, var: str) -> None:
-        self.environ.pop(var)
+        self.environ.pop(str(var))
+
+    ########################################
+    #        FILE SYSTEM NAVIGATION        #
+    ########################################
+    def listdir(self, path):
+        pass
+
+    def chdir(self, path):
+        pass
+    # listdir, chdir, mkdir, is_dir, is_file, exists, chown, chmod, touch, cat, etc...
+
+    ########################################
+    #       SHELL COMMAND EXECUTION        #
+    ########################################
+    # command-executing methods. Three levels of simplicity vs control,
+    # sort of analogous to:
+    #   self.check_output()     --> subprocess.check_output()
+    #   self.run()              --> subprocess.run()
+    #   self.spawn_process()    --> subprocess.Popen()
+    def check_output(
+            self,
+            command: OneOrMore[str],
+            options: NoneOrMore[str] = None,
+            stderr: bool = False
+    ) -> Union[str, Tuple]:
+        # TODO: add docstring -- most basic way to run command.
+        finished_proc = self.run(command=command, options=options, allow_error=False)
+        if stderr:
+            return finished_proc.stdout.final, finished_proc.stderr.final
+        else:
+            return finished_proc.stdout.final
+
+    def run(
+            self,
+            command: OneOrMore[str],
+            options: NoneOrMore[str] = None,
+            working_dir: Optional[PathLike] = None,
+            tmp_env: Optional[Dict[str, str]] = None,
+            allow_error: bool = False
+    ) -> RemoteProcess:
+        # TODO: add docstring -- simplified interface for running
+        #  commands. For finer control, use spawn_process. Will always
+        #  wait for process to finish & return completed process
+        return self.spawn_process(command=command,
+                                  options=options,
+                                  working_dir=working_dir,
+                                  tmp_env=tmp_env,
+                                  allow_error=allow_error,
+                                  wait=True)
+
 
     def spawn_process(
             self,
             command: OneOrMore[str],
-            stdout: Optional[OneOrMore[TextIO]] = None,
-            stderr: Optional[OneOrMore[TextIO]] = None,
-            stream_encoding='utf-8',
-            tty=False
-    ) -> 'RemoteProcess':
+            options: NoneOrMore[str] = None,
+            working_dir: Optional[PathLike] = None,
+            tmp_env: Optional[Dict[str, str]] = None,
+            stdout: NoneOrMore[MswStdoutDest] = None,
+            stderr: NoneOrMore[MswStderrDest] = None,
+            stream_encoding: Union[str, None] = 'utf-8',
+            close_streams: bool = True,
+            wait: bool = False,
+            allow_error: bool = False,
+            use_pty: bool = False,
+            callback: Optional[Callable] = None,
+            callback_args: Optional[Tuple] = None,
+            callback_kwargs: Optional[Dict] = None
+    ) -> RemoteProcess:
+        # TODO: add docstring
+        # TODO: note in docstring that '-c' option is added at end automatically
         # might just be base function for self.exec_command(block=True/False).
         # passing list of strings is equivalent to &&-joining them
         # if stdout/stderr are None, default to just writing to the object
 
+        # set defaults and funnel types
+        if isinstance(command, str):
+            command = [command]
+        elif isinstance(command, Sequence):
+            command = ' && '.join(command)
+
+        if options is None:
+            options = []
+        elif isinstance(options, str):
+            options = [options]
+
+        if tmp_env is not None:
+            _tmp_env = self.environ.copy()
+            _tmp_env.update(tmp_env)
+            tmp_env = _tmp_env
+
         # format command string
-        proc = RemoteProcess()
+        full_command = [self.executable]
+        for opt in options:
+            full_command.extend(opt.split())
 
+        full_command.append('-c')
+        full_command.append(command)
 
-
-
-
-
-
+        # create RemoteProcess instance
+        proc = RemoteProcess(command=command,
+                             ssh_shell=self.shell,
+                             working_dir=working_dir,
+                             env_updates=tmp_env,
+                             stdout=stdout,
+                             stderr=stderr,
+                             stream_encoding=stream_encoding,
+                             close_streams=close_streams,
+                             wait=wait,
+                             allow_error=allow_error,
+                             use_pty=use_pty,
+                             callback=callback,
+                             callback_args=callback_args,
+                             callback_kwargs=callback_kwargs)
+        return proc.run()
 
 # to kill process:
 # runner.proc.send_signal('SIGKILL')
