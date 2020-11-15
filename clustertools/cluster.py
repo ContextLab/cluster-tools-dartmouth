@@ -8,13 +8,13 @@ import spur
 import spurplus
 from paramiko import SFTPAttributes
 
-from clustertools._extras.remote_process import RemoteProcess
-from clustertools._extras.typing import (MswStderrDest,
-                                         MswStdoutDest,
-                                         NoneOrMore,
-                                         OneOrMore,
-                                         PathLike,
-                                         Sequence)
+from clustertools.shared.remote_process import RemoteProcess
+from clustertools.shared.typing import (MswStderrDest,
+                                        MswStdoutDest,
+                                        NoneOrMore,
+                                        OneOrMore,
+                                        PathLike,
+                                        Sequence)
 
 
 class Cluster:
@@ -152,6 +152,8 @@ class Cluster:
     ##########################################################
     #          FILE SYSTEM NAVIGATION & INTERACTION          #
     ##########################################################
+    # TODO: implement os.walk?
+
     def cat(self, path: PathLike) -> str:
         # TODO: add docstring
         path = str(self.resolve_path(path))
@@ -434,3 +436,7 @@ class Cluster:
                              callback_args=callback_args,
                              callback_kwargs=callback_kwargs)
         return proc.run()
+
+    ##########################################################
+    #                     JOB SUBMISSION                     #
+    ##########################################################

@@ -5,13 +5,13 @@ from typing import Any, Callable, Dict, Optional, Tuple, Union
 import spur
 import spurplus
 
-from clustertools._extras.exceptions import SshProcessError
-from clustertools._extras.multistream_wrapper import MultiStreamWrapper
-from clustertools._extras.typing import (MswStderrDest,
-                                         MswStdoutDest,
-                                         NoneOrMore,
-                                         OneOrMore,
-                                         PathLike)
+from clustertools.shared.exceptions import SshProcessError
+from clustertools.shared.multistream_wrapper import MultiStreamWrapper
+from clustertools.shared.typing import (MswStderrDest,
+                                        MswStdoutDest,
+                                        NoneOrMore,
+                                        OneOrMore,
+                                        PathLike)
 
 
 # TODO: ensure that all_error=False raises exception in main thread when wait=False

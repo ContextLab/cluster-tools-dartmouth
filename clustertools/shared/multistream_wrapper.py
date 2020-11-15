@@ -3,7 +3,7 @@ from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Optional, Sequence, Union
 
-from clustertools._extras.typing import MswStderrDest, MswStdoutDest, OneOrMore
+from clustertools.shared.typing import MswStderrDest, MswStdoutDest, OneOrMore
 
 
 class MultiStreamWrapper:
