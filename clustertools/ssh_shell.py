@@ -1,14 +1,14 @@
 import getpass
 import os
+import socket
 import warnings
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Callable, Optional, Union, Tuple, Dict
 
 import spur
 import spurplus
 from paramiko import SFTPAttributes
 
-from clustertools.batch_submission import BatchSubmission
 from clustertools.shared.remote_process import RemoteProcess
 from clustertools.shared.typing import (MswStderrDest,
                                         MswStdoutDest,
@@ -18,65 +18,54 @@ from clustertools.shared.typing import (MswStderrDest,
                                         Sequence)
 
 
-class Cluster:
+# TODO: add reconnect method?
+class SshShell:
     def __init__(
             self,
             hostname: str,
             username: Optional[str] = None,
-            password: Optional[str] = None,
-            use_key: bool = False,
-            port: int = 22,
-            timeout: int = 60,
-            retries: int = 0,
-            retry_delay: int = 1,
             executable: Optional[PathLike] = None,
             cwd: Optional[PathLike] = None,
             env_additions: Optional[Dict[str, str]] = None,
-            submitter: Optional[BatchSubmission] = None
+            connect: bool = True,
+            **connection_kwargs
     ) -> None:
         # TODO: add docstring
-        # TODO: separate self.environ into class with validations, session/persistent setting, etc.
-        # setup connection first for fast failure
-        if hostname == 'localhost':
-            self.shell = spur.LocalShell()
-            self.username = getpass.getuser()
-            self.environ = dict(os.environ)
-            self.port: Optional[int] = None
-        else:
-            self.shell = spurplus.connect_with_retries(hostname=hostname,
-                                                       username=username,
-                                                       password=(getpass.getpass('Password: ') if not (use_key or password) else password),
-                                                       look_for_private_keys=(not use_key),
-                                                       port=port,
-                                                       connect_timeout=timeout,
-                                                       retries=retries,
-                                                       retry_period=retry_delay)
-            del password
-            self.username = username
-            self.port = port
-            # TODO: a more robust solution for this in case BASH_FUNC_module isn't last
-            env_str = self.shell.run(['printenv']).output.split('\nBASH_FUNC_module()')[0]
-            self.environ = dict(map(lambda x: x.split('=', maxsplit=1), env_str.splitlines()))
+        # TODO: separate self.environ into class with validations,
+        #  session/persistent setting, custom __setitem__/__getitem__, etc.
 
         self.hostname = hostname
-        self.env_additions = env_additions or dict()
-        self.environ.update(self.env_additions)
+        self.username = username
+        self.port = None
+        self.timeout = None
+        self.retries = None
+        self.retry_delay = None
 
-        if cwd is None:
-            # skip validation if defaulting to $HOME
-            self._cwd = Path(self.environ.get('HOME'))
+        if connect:
+            self.connect(**connection_kwargs)
+            # TODO: a more robust solution for this in case BASH_FUNC_module isn't last
+            env_str = self.shell.run(['printenv']).output.split('\nBASH_FUNC_module()')[0]
+            self._env_orig = dict(map(lambda x: x.split('=', maxsplit=1), env_str.splitlines()))
         else:
-            # otherwise, run setter
-            self.cwd = cwd
+            self.shell = spur.LocalShell()
+            self.connected = False
+            self._env_orig = dict(os.environ)
+            if hostname == 'localhost':
+                # user wants to run commands in a local shell
+                self.hostname = socket.gethostname()
+                self.username = getpass.getuser()
+            else:
+                # user doesn't want to connect yet, but may have passed
+                # connection params to constructor
+                self.port = connection_kwargs.get('port')
+                self.timeout = connection_kwargs.get('timeout')
+                self.retries = connection_kwargs.get('retries')
+                self.retry_delay = connection_kwargs.get('retry_delay')
 
-        if executable is None:
-            # skip validation if defaulting to $SHELL
-            self._executable = self.environ.get('SHELL')
-        else:
-            # otherwise, run setter
-            self.executable = executable
-
-        self.submitter = submitter
+        self._env_additions = env_additions or dict()
+        # cwd & executable attrs must be set after _env_orig & _env_additions
+        self.cwd = cwd
+        self.executable = executable
 
     def __enter__(self):
         return self
@@ -89,69 +78,204 @@ class Cluster:
         return str(self._cwd)
 
     @cwd.setter
-    def cwd(self, new_cwd: PathLike) -> None:
+    def cwd(self, new_cwd: Optional[PathLike]) -> None:
         # TODO: add docstring
-        new_cwd = Path(new_cwd)
-        if not new_cwd.is_absolute():
-            raise AttributeError('working directory must be an absolute path')
-        try:
-            assert self.shell.is_dir(new_cwd)
-        except AssertionError as e:
-            # new_cwd points to a file
-            raise NotADirectoryError(f"{new_cwd}: Not a directory") from e
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"{new_cwd}: No such file or directory") from e
+        if new_cwd is None:
+            # can skip validation if defaulting/resetting to $HOME
+            # used for convenience internally, but is exposed as a valid option to user
+            self._cwd = PurePosixPath(self.environ.get('HOME'))
         else:
-            self._cwd = new_cwd
+            new_cwd = PurePosixPath(new_cwd)
+            if not new_cwd.is_absolute():
+                raise AttributeError('working directory must be an absolute path')
+            try:
+                assert self.shell.is_dir(new_cwd)
+            except AssertionError as e:
+                # new_cwd points to a file
+                raise NotADirectoryError(f"{new_cwd}: Not a directory") from e
+            except FileNotFoundError as e:
+                raise FileNotFoundError(f"{new_cwd}: No such file or directory") from e
+            else:
+                self._cwd = new_cwd
+
+    @property
+    def environ(self) -> Dict:
+        # TODO: add docstring
+        # TODO: implement cache so operations are only run after calls to
+        #  self.putenv/self.unsetenv
+        #  also need to support deleting vars that weren't set in same session
+        #  and actually *unsetting them*, rather than just returning to the default value
+        _environ = self._env_orig.copy()
+        _environ.update(self._env_additions)
+        return _environ
 
     @property
     def executable(self) -> str:
+        # TODO: add docstring
         return self._executable
 
     @executable.setter
-    def executable(self, new_exe: PathLike) -> None:
+    def executable(self, new_exe: Optional[PathLike]) -> None:
         # TODO: add docstring
-        new_exe = str(new_exe)
-        exes_avail = self.shell.run(['cat', '/etc/shells']).output.splitlines()
-        if new_exe in exes_avail:
-            # full path was passed (e.g., '/bin/bash')
-            self._executable = new_exe
+        if new_exe is None:
+            # like cwd setter, can skip validation if defaulting/resetting to $SHELL
+            self._executable = self.environ.get('SHELL')
         else:
-            # shorthand was passed (e.g., 'bash')
-            try:
-                # get full path of first matching option in /etc/shells
-                first_match = next(s for s in exes_avail if s.endswith(new_exe))
-            except StopIteration:
-                raise AttributeError(f"No executable found for {new_exe}. "
-                                     f"Available shells are:\n{', '.join(exes_avail)}")
+            new_exe = str(new_exe)
+            shells_file_lines = self.shell.run(['cat', '/etc/shells']).output.splitlines()
+            # file may or may not have comments (does on my Mac, doesn't on Discovery)
+            exes_avail = [l for l in shells_file_lines if l.startswith(os.path.sep)]
+            if new_exe in exes_avail:
+                # full path was passed (e.g., '/bin/bash')
+                self._executable = new_exe
             else:
-                # if shorthand was passed, print full path to confirm
-                print(f"switched to: '{first_match}'")
-                self._executable = first_match
+                # shorthand was passed (e.g., 'bash')
+                try:
+                    # get full path of first matching option in /etc/shells
+                    first_match = next(s for s in exes_avail if s.endswith(new_exe))
+                except StopIteration:
+                    raise AttributeError(f"No executable found for {new_exe}. "
+                                         f"Available shells are:\n{', '.join(exes_avail)}")
+                else:
+                    # if shorthand was passed, print full path to confirm
+                    print(f"switched to: '{first_match}'")
+                    self._executable = first_match
 
-    def close(self) -> None:
+    ##########################################################
+    #                 CONNECTION MANAGEMENT                  #
+    ##########################################################
+    def connect(
+            self,
+            hostname: Optional[str] = None,
+            username: Optional[str] = None,
+            password: Optional[str] = None,
+            use_key: bool = False,
+            port: int = 22,
+            timeout: int = 60,
+            retries: int = 0,
+            retry_delay: int = 1
+    ) -> None:
         # TODO: add docstring
-        return self.shell.close()
+        # for each param, priority is passed value > object attr (> default value)
+        hostname = hostname or self.hostname
+        username = username or self.username
+        port = port or self.port or 22
+        timeout = timeout or self.timeout or 60
+        retries = retries or self.retries or 0
+        retry_delay = retry_delay or self.retry_delay or 1
+
+        if self.connected:
+            raise ConnectionError('already connected to a remote host. use '
+                                  '`SshShell.disconnect` to disconnect from the '
+                                  'current host before connecting to a new one, '
+                                  'or `SshShell.reconnect` to reset the connection '
+                                  'to the current host')
+
+        if password is None and not use_key:
+            password = getpass.getpass('Password: ')
+        self.shell = spurplus.connect_with_retries(hostname=hostname,
+                                                   username=username,
+                                                   password=password,
+                                                   use_key=use_key,
+                                                   look_for_private_keys=(not use_key),
+                                                   port=port,
+                                                   connect_timeout=timeout,
+                                                   retries=retries,
+                                                   retry_period=retry_delay)
+        # only update attrs if connection is successful
+        self.port = port
+        self.timeout = timeout
+        self.retries = retries
+        self.retry_delay = retry_delay
+        self.connected = True
+
+    def disconnect(self) -> None:
+        # TODO: add docstring
+        if not self.connected:
+            raise ConnectionError('not currently connected to a remote host')
+
+        self.shell.close()
+        self.connected = False
+        self.port = self.timeout = self.retries = self.retry_delay = None
+
+
+    def reconnect(
+            self,
+            password: Optional[str] = None,
+            use_key: bool = False,
+            port: Optional[int] = None,
+            timeout: Optional[int] = None,
+            retries: Optional[int] = None,
+            retry_delay: Optional[int] = None,
+            reset_env: bool = False,
+            reset_cwd: bool = False,
+            reset_executable: bool = False
+    ) -> None:
+        # TODO: add docstring
+        # port, timeout, retries, retry_delay default to values for current connection
+        connect_params = {
+            'hostname': self.hostname,
+            'username': self.username,
+            'password': password,
+            'use_key': use_key,
+            'port': port or self.port,
+            'timeout': timeout or self.timeout,
+            'retries': retries or self.retries,
+            'retry_delay': retry_delay or self.retry_delay
+        }
+        if reset_env:
+            self.resetenv()
+
+        self.disconnect()
+        self.connect(**connect_params)
+        if reset_cwd:
+            self.cwd = None
+        if reset_executable:
+            self.executable = None
+
+        self.disconnect()
+        self.connect()
 
     ##########################################################
     #                 ENVIRONMENT MANAGEMENT                 #
     ##########################################################
-    # analogues to `os` module's `os.environ` modifier functions ####
-    def getenv(self, var: str, default: Optional[str] = None) -> str:
+    # analogues to `os` module's `os.environ` methods, plus some extras
+    def getenv(self, key: str, default: Optional[str] = None) -> str:
         # TODO: add docstring
-        return self.environ.get(var, default=default)
+        return self.environ.get(key, default=default)
 
-    def putenv(self, var: str, value: str) -> None:
+    def putenv(self, key: str, value: str) -> None:
         # TODO: add docstring
         # all environ values are stored and retrieved as strings
-        var, value = str(var), str(value)
+        var, value = str(key), str(value)
         if var == 'SHELL':
             # updating $SHELL also validates & updates self.SHELL
             self.executable = value
-        self.environ[var] = value
+        self._env_additions[var] = value
 
-    def unsetenv(self, var: str) -> None:
-        self.environ.pop(str(var))
+    def unsetenv(self, key: str) -> None:
+        # TODO: add docstring
+        # TODO: deal with unsetting existing vars
+        key = str(key)
+        try:
+            return self._env_additions.pop(key)
+        except KeyError:
+            if key in self._env_orig:
+                raise NotImplementedError("unsetting environment variables not "
+                                          "set by the current SshShell is not "
+                                          "yet supported")
+            else:
+                raise
+
+    def updateenv(self, E, **F):
+        # TODO: add docstring
+        # analogous to dict.update(), params named so signature matches
+        self._env_additions.update(E, **F)
+
+    def resetenv(self):
+        # TODO: add docstring
+        # resets the environment to state before edits from this session
+        self._env_additions = dict()
 
     ##########################################################
     #          FILE SYSTEM NAVIGATION & INTERACTION          #
@@ -194,10 +318,20 @@ class Cluster:
         # TODO: add docstring
         # no straightforward way to do this between spurplus/spur/paramiko,
         # so going for the roundabout way
-        full_path = self.resolve_path(path)
-        output = self.shell.run([self.executable, '-c', f'test -f {full_path}'],
+        path = self.resolve_path(path)
+        output = self.shell.run([self.executable, '-c', f'test -f {path}'],
                                 allow_error=True)
         return not bool(output.return_code)
+
+    def is_subdir_of(self, subdir: PathLike, parent: PathLike) -> bool:
+        # TODO: add docstring
+        subdir = PurePosixPath(self.resolve_path(subdir))
+        parent = PurePosixPath(self.resolve_path(parent))
+        try:
+            subdir.relative_to(parent)
+            return True
+        except ValueError:
+            return False
 
     def listdir(self, path: PathLike = '.') -> None:
         # TODO: add docstring
@@ -247,13 +381,13 @@ class Cluster:
             path = '/'.join(*parts)
             path = path.replace('//', '/')
 
-        return orig_type(self.shell.as_sftp().normalize(path))
+        return orig_type(self.shell.as_sftp()._sftp.normalize(path))
 
     def stat(self, path: PathLike = None) -> SFTPAttributes:
         path = self.resolve_path(path)
         return self.shell.stat(remote_path=path)
 
-    def touch(self, path: PathLike, mode=33188, exist_ok=True):
+    def touch(self, path: PathLike, mode: int = 33188, exist_ok: bool = True):
         # TODO: add docstring.
         #  Functions like Pathlib.touch(). if file exists and exist_ok
         #  is True, calls equiv to os.utime to update atime and mtime
@@ -262,7 +396,10 @@ class Cluster:
         # mode 33188, octal equiv: '0o100644'
         path = str(self.resolve_path(path))
         if self.exists(path):
-            self.shell.as_sftp()._sftp.utime(path, times=None)
+            if exist_ok:
+                self.shell.as_sftp()._sftp.utime(path, times=None)
+            else:
+                raise FileExistsError(f"")
         else:
             self.write(path, content='', encoding='utf-8')
             curr_mode = self.shell.stat(path).st_mode
@@ -270,8 +407,8 @@ class Cluster:
                 try:
                     self.chmod(path, mode)
                 except NotImplementedError:
-                    warnings.warn('chmod/chown functionality not implemented. '
-                                  f'File created with permissions: {curr_mode}')
+                    warnings.warn("chmod/chown functionality not implemented. "
+                                  f"File created with permissions: {curr_mode}")
 
     ##########################################################
     #                 FILE TRANSFER & ACCESS                 #
@@ -440,20 +577,3 @@ class Cluster:
                              callback_args=callback_args,
                              callback_kwargs=callback_kwargs)
         return proc.run()
-
-    ##########################################################
-    #                     JOB SUBMISSION                     #
-    ##########################################################
-    def submit(self, **kwargs):
-
-        pass
-
-    ##########################################################
-    #                     JOB MONITORING                     #
-    ##########################################################
-    def monitor(self):
-        pass
-
-    ##########################################################
-    #                 JOB OUTPUT COLLECTION                  #
-    ##########################################################
