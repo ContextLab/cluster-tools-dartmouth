@@ -18,11 +18,10 @@ from clustertools.shared.typing import (MswStderrDest,
                                         Sequence)
 
 
-# TODO: add reconnect method?
 class SshShell:
     def __init__(
             self,
-            hostname: str,
+            hostname: Optional[str] = None,
             username: Optional[str] = None,
             executable: Optional[PathLike] = None,
             cwd: Optional[PathLike] = None,
@@ -34,7 +33,7 @@ class SshShell:
         # TODO: separate self.environ into class with validations,
         #  session/persistent setting, custom __setitem__/__getitem__, etc.
 
-        self.hostname = hostname
+        self.hostname = hostname or 'localhost'
         self.username = username
         self.port = None
         self.timeout = None
@@ -156,6 +155,13 @@ class SshShell:
             retry_delay: int = 1
     ) -> None:
         # TODO: add docstring
+        if self.connected:
+            raise ConnectionError('already connected to a remote host. use '
+                                  '`SshShell.disconnect` to disconnect from the '
+                                  'current host before connecting to a new one, '
+                                  'or `SshShell.reconnect` to reset the connection '
+                                  'to the current host')
+
         # for each param, priority is passed value > object attr (> default value)
         hostname = hostname or self.hostname
         username = username or self.username
@@ -163,13 +169,6 @@ class SshShell:
         timeout = timeout or self.timeout or 60
         retries = retries or self.retries or 0
         retry_delay = retry_delay or self.retry_delay or 1
-
-        if self.connected:
-            raise ConnectionError('already connected to a remote host. use '
-                                  '`SshShell.disconnect` to disconnect from the '
-                                  'current host before connecting to a new one, '
-                                  'or `SshShell.reconnect` to reset the connection '
-                                  'to the current host')
 
         if password is None and not use_key:
             password = getpass.getpass('Password: ')
