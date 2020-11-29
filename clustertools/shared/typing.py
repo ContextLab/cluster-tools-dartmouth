@@ -1,9 +1,18 @@
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import sys
-from typing import BinaryIO, Literal, Optional, Sequence, TextIO, TypeVar, Union
+from typing import (
+    BinaryIO,
+    Dict,
+    Literal,
+    Optional,
+    Sequence,
+    TextIO,
+    TypeVar,
+    Union
+)
 
 
-PathLike = Union[str, Path]
+PathLike = Union[str, PurePosixPath]
 
 T = TypeVar('T')
 OneOrMore = Union[T, Sequence[T]]
@@ -12,3 +21,5 @@ NoneOrMore = Optional[OneOrMore]    # equivalent to Union[None, OneOrMore]
 MswDestBase = TypeVar('MswDestBase', BinaryIO, Path, str, TextIO)
 MswStdoutDest = Union[MswDestBase, type(sys.stdout), Literal['stdout']]
 MswStderrDest = Union[MswDestBase, type(sys.stderr), Literal['stderr']]
+
+EnvMapping = Dict[str, str]

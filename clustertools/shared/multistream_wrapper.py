@@ -1,6 +1,6 @@
 import sys
 from io import BytesIO, StringIO
-from pathlib import Path
+from pathlib import PurePath
 from typing import Optional, Sequence, Union
 
 from clustertools.shared.typing import MswStderrDest, MswStdoutDest, OneOrMore
@@ -18,7 +18,7 @@ class MultiStreamWrapper:
         if destinations is None:
             destinations = tuple()
         elif (
-                isinstance(destinations, (str, Path)) or
+                isinstance(destinations, (str, PurePath)) or
                 not isinstance(destinations, Sequence)
         ):
             destinations = [destinations]
@@ -53,7 +53,7 @@ class MultiStreamWrapper:
                 s = sys.stdout
             elif s == 'stderr':
                 s = sys.stderr
-            elif isinstance(s, (str, Path)):
+            elif isinstance(s, (str, PurePath)):
                 try:
                     s = open(s, encoding=encoding, **file_io_kwargs)
                 except:
