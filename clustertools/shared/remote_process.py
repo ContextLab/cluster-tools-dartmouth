@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Optional, Tuple, Union
 import spur
 import spurplus
 
-from clustertools.shared.exceptions import SshProcessError
+from clustertools.shared.exceptions import SSHProcessError
 from clustertools.shared.multistream_wrapper import MultiStreamWrapper
 from clustertools.shared.typing import (MswStderrDest,
                                         MswStdoutDest,
@@ -17,6 +17,7 @@ from clustertools.shared.typing import (MswStderrDest,
 # TODO: ensure that all_error=False raises exception in main thread when wait=False
 # TODO?: change allow_error={True,False} to on_error={'raise','warn','allow'/'ignore'/'suppress'}
 class RemoteProcess:
+    # TODO: add docstring
     def __init__(
             self,
             command: OneOrMore[str],
@@ -113,10 +114,10 @@ class RemoteProcess:
 
     def run_callback(self, update_stored=False):
         if not self.started:
-            raise SshProcessError("The processes has not been started. "
+            raise SSHProcessError("The processes has not been started. "
                                   "Use 'RemoteProcess.run()' to start the process.")
         elif not self.completed:
-            raise SshProcessError("Can't run callback until the process is "
+            raise SSHProcessError("Can't run callback until the process is "
                                   "completed. You can signal the process to "
                                   "stop using one of:\n"
                                   "'RemoteProcess.interrupt()', "
@@ -130,18 +131,18 @@ class RemoteProcess:
 
     def stdin_write(self, value: str) -> None:
         if self.completed:
-            raise SshProcessError("Unable to send input to a completed process")
+            raise SSHProcessError("Unable to send input to a completed process")
         elif not self.started:
-            raise SshProcessError("The processes has not been started. "
+            raise SSHProcessError("The processes has not been started. "
                                   "Use 'RemoteProcess.run()' to start the process.")
 
         self._proc.stdin_write(value=value)
 
     def send_signal(self, signal: Union[str, int]) -> None:
         if self.completed:
-            raise SshProcessError("Unable to send signal to a completed process")
+            raise SSHProcessError("Unable to send signal to a completed process")
         elif not self.started:
-            raise SshProcessError("The processes has not been started. "
+            raise SSHProcessError("The processes has not been started. "
                                   "Use 'RemoteProcess.run()' to start the process.")
 
         self._proc.send_signal(signal=signal)

@@ -11,7 +11,7 @@ class SSHConnectionError(ClusterToolsError):
         self.message = message
 
 
-class SshProcessError(ClusterToolsError, ProcessLookupError):
+class SSHProcessError(ClusterToolsError, ProcessLookupError):
     def __init__(self, message: Optional[str]):
         super().__init__(message)
         self.message = message
