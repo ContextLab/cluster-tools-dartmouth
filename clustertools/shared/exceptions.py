@@ -1,8 +1,17 @@
+from typing import Optional
+
+
 class ClusterToolsError(Exception):
     pass
 
 
-class SshProcessError(ProcessLookupError):
-    def __init__(self, message):
+class SSHConnectionError(ClusterToolsError):
+    def __init__(self, message: Optional[str]):
+        super().__init__(message)
+        self.message = message
+
+
+class SshProcessError(ClusterToolsError, ProcessLookupError):
+    def __init__(self, message: Optional[str]):
         super().__init__(message)
         self.message = message

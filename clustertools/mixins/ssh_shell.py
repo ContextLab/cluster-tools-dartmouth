@@ -9,6 +9,7 @@ import spur
 import spurplus
 from paramiko import SFTPAttributes
 
+from clustertools.mixins.environ import ShellEnvironMixin
 from clustertools.shared.remote_process import RemoteProcess
 from clustertools.shared.typing import (MswStderrDest,
                                         MswStdoutDest,
@@ -18,7 +19,8 @@ from clustertools.shared.typing import (MswStderrDest,
                                         Sequence)
 
 
-class SshShell:
+class SshShell(ShellEnvironMixin):
+    # TODO: add docstring
     def __init__(
             self,
             hostname: Optional[str] = None,
@@ -30,10 +32,8 @@ class SshShell:
             **connection_kwargs
     ) -> None:
         # TODO: add docstring
-        # TODO: separate self.environ into class with validations,
-        #  session/persistent setting, custom __setitem__/__getitem__, etc.
 
-        self.hostname = hostname or 'localhost'
+        self.hostname = hostname
         self.username = username
         self.port = None
         self.timeout = None
@@ -48,7 +48,6 @@ class SshShell:
         else:
             self.shell = spur.LocalShell()
             self.connected = False
-            self._env_orig = dict(os.environ)
             if hostname == 'localhost':
                 # user wants to run commands in a local shell
                 self.hostname = socket.gethostname()
@@ -60,6 +59,8 @@ class SshShell:
                 self.timeout = connection_kwargs.get('timeout')
                 self.retries = connection_kwargs.get('retries')
                 self.retry_delay = connection_kwargs.get('retry_delay')
+
+        super().__init__(env_additions)
 
         self._env_additions = env_additions or dict()
         # cwd & executable attrs must be set after _env_orig & _env_additions
@@ -96,17 +97,6 @@ class SshShell:
                 raise FileNotFoundError(f"{new_cwd}: No such file or directory") from e
             else:
                 self._cwd = new_cwd
-
-    @property
-    def environ(self) -> Dict:
-        # TODO: add docstring
-        # TODO: implement cache so operations are only run after calls to
-        #  self.putenv/self.unsetenv
-        #  also need to support deleting vars that weren't set in same session
-        #  and actually *unsetting them*, rather than just returning to the default value
-        _environ = self._env_orig.copy()
-        _environ.update(self._env_additions)
-        return _environ
 
     @property
     def executable(self) -> str:
@@ -234,47 +224,6 @@ class SshShell:
 
         self.disconnect()
         self.connect()
-
-    ##########################################################
-    #                 ENVIRONMENT MANAGEMENT                 #
-    ##########################################################
-    # analogues to `os` module's `os.environ` methods, plus some extras
-    def getenv(self, key: str, default: Optional[str] = None) -> str:
-        # TODO: add docstring
-        return self.environ.get(key, default=default)
-
-    def putenv(self, key: str, value: str) -> None:
-        # TODO: add docstring
-        # all environ values are stored and retrieved as strings
-        var, value = str(key), str(value)
-        if var == 'SHELL':
-            # updating $SHELL also validates & updates self.SHELL
-            self.executable = value
-        self._env_additions[var] = value
-
-    def unsetenv(self, key: str) -> None:
-        # TODO: add docstring
-        # TODO: deal with unsetting existing vars
-        key = str(key)
-        try:
-            return self._env_additions.pop(key)
-        except KeyError:
-            if key in self._env_orig:
-                raise NotImplementedError("unsetting environment variables not "
-                                          "set by the current SshShell is not "
-                                          "yet supported")
-            else:
-                raise
-
-    def updateenv(self, E, **F):
-        # TODO: add docstring
-        # analogous to dict.update(), params named so signature matches
-        self._env_additions.update(E, **F)
-
-    def resetenv(self):
-        # TODO: add docstring
-        # resets the environment to state before edits from this session
-        self._env_additions = dict()
 
     ##########################################################
     #          FILE SYSTEM NAVIGATION & INTERACTION          #
