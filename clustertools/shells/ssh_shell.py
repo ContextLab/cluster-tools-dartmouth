@@ -1,15 +1,16 @@
 import getpass
+import locale
 import os
-import socket
 import warnings
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 from typing import Callable, Optional, Union, Tuple, Dict
 
-import spur
 import spurplus
 from paramiko import SFTPAttributes
+from spur.results import RunProcessError
 
-from clustertools.mixins.environ import ShellEnvironMixin
+from clustertools.mixins import PseudoEnviron
+from clustertools.shared.exceptions import SSHConnectionError
 from clustertools.shared.remote_process import RemoteProcess
 from clustertools.shared.typing import (MswStderrDest,
                                         MswStdoutDest,
@@ -19,116 +20,113 @@ from clustertools.shared.typing import (MswStderrDest,
                                         Sequence)
 
 
-class SshShell(ShellEnvironMixin):
-    # TODO: add docstring
-    def __init__(
-            self,
-            hostname: Optional[str] = None,
-            username: Optional[str] = None,
-            executable: Optional[PathLike] = None,
-            cwd: Optional[PathLike] = None,
-            env_additions: Optional[Dict[str, str]] = None,
-            connect: bool = True,
-            **connection_kwargs
-    ) -> None:
-        # TODO: add docstring
-
-        self.hostname = hostname
-        self.username = username
-        self.port = None
-        self.timeout = None
-        self.retries = None
-        self.retry_delay = None
-
-        if connect:
-            self.connect(**connection_kwargs)
-            # TODO: a more robust solution for this in case BASH_FUNC_module isn't last
-            env_str = self.shell.run(['printenv']).output.split('\nBASH_FUNC_module()')[0]
-            self._env_orig = dict(map(lambda x: x.split('=', maxsplit=1), env_str.splitlines()))
-        else:
-            self.shell = spur.LocalShell()
-            self.connected = False
-            if hostname == 'localhost':
-                # user wants to run commands in a local shell
-                self.hostname = socket.gethostname()
-                self.username = getpass.getuser()
-            else:
-                # user doesn't want to connect yet, but may have passed
-                # connection params to constructor
-                self.port = connection_kwargs.get('port')
-                self.timeout = connection_kwargs.get('timeout')
-                self.retries = connection_kwargs.get('retries')
-                self.retry_delay = connection_kwargs.get('retry_delay')
-
-        super().__init__(env_additions)
-
-        self._env_additions = env_additions or dict()
-        # cwd & executable attrs must be set after _env_orig & _env_additions
-        self.cwd = cwd
-        self.executable = executable
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        return self.close()
+# noinspection PyAttributeOutsideInit,PyUnresolvedReferences
+class SshShellMixin:
+    # ADD DOCSTRING
+    # TODO: implement recursive option for get/put that uses
+    #  spur.SshShell.upload/download method
 
     @property
-    def cwd(self) -> str:
-        return str(self._cwd)
+    def cwd(self) -> PurePosixPath:
+        if not self.connected:
+            raise SSHConnectionError("SSH connection must be open to access remote file system")
+        return self._cwd
 
     @cwd.setter
     def cwd(self, new_cwd: Optional[PathLike]) -> None:
-        # TODO: add docstring
-        if new_cwd is None:
-            # can skip validation if defaulting/resetting to $HOME
-            # used for convenience internally, but is exposed as a valid option to user
+        if not self.connected:
+            # can't validate if no connected (will be done on connecting)
+            self._cwd = PurePosixPath(new_cwd)
+        elif new_cwd is None:
+            # internal shortcut to skip validation when
+            # defaulting/resetting cwd to $HOME
             self._cwd = PurePosixPath(self.environ.get('HOME'))
         else:
             new_cwd = PurePosixPath(new_cwd)
             if not new_cwd.is_absolute():
-                raise AttributeError('working directory must be an absolute path')
+                raise AttributeError('Working directory must be an absolute path.')
             try:
                 assert self.shell.is_dir(new_cwd)
             except AssertionError as e:
                 # new_cwd points to a file
                 raise NotADirectoryError(f"{new_cwd}: Not a directory") from e
             except FileNotFoundError as e:
+                # new_cwd doesn't exist
                 raise FileNotFoundError(f"{new_cwd}: No such file or directory") from e
             else:
                 self._cwd = new_cwd
 
     @property
+    def environ(self) -> PseudoEnviron:
+        if not self.connected:
+            raise SSHConnectionError("SSH connection must be open to read remote environment")
+        return self._environ
+
+    @property
     def executable(self) -> str:
-        # TODO: add docstring
+        # ADD DOCSTRING
+        if not self.connected:
+            raise SSHConnectionError("SSH connection must be open to determine remote shell")
         return self._executable
 
     @executable.setter
     def executable(self, new_exe: Optional[PathLike]) -> None:
-        # TODO: add docstring
-        if new_exe is None:
-            # like cwd setter, can skip validation if defaulting/resetting to $SHELL
+        # TODO: checking /etc/shells MIGHT be less efficient than
+        #  creating/running a RemoteProcess (which has to be done so
+        #  full $PATH is set) but would enforce only allowing actual
+        #  shells to be set, rather than any executable file
+        if not self.connected:
+            # can't validate new_exe if not connected (will be done on connecting)
+            self._executable = str(new_exe)
+        elif new_exe is None:
+            # internal shortcut to skip validation when
+            # defaulting/resetting executable to $SHELL
             self._executable = self.environ.get('SHELL')
         else:
             new_exe = str(new_exe)
-            shells_file_lines = self.shell.run(['cat', '/etc/shells']).output.splitlines()
-            # file may or may not have comments (does on my Mac, doesn't on Discovery)
-            exes_avail = [l for l in shells_file_lines if l.startswith(os.path.sep)]
-            if new_exe in exes_avail:
-                # full path was passed (e.g., '/bin/bash')
-                self._executable = new_exe
+            try:
+                # if an executable's name (e.g., "bash") is passed
+                # rather than its full path and multiple options exist
+                # (e.g., /bin/bash vs /usr/bin/bash), uses first one
+                # found in $PATH the same way calling name from shell would
+                full_exe_path = self.check_output(['command', -'v', new_exe]).strip()
+            except RunProcessError as e:
+                raise ValueError(f"No remote executable matching '{new_exe}' "
+                                 f"found in $PATH") from e
             else:
-                # shorthand was passed (e.g., 'bash')
-                try:
-                    # get full path of first matching option in /etc/shells
-                    first_match = next(s for s in exes_avail if s.endswith(new_exe))
-                except StopIteration:
-                    raise AttributeError(f"No executable found for {new_exe}. "
-                                         f"Available shells are:\n{', '.join(exes_avail)}")
-                else:
-                    # if shorthand was passed, print full path to confirm
-                    print(f"switched to: '{first_match}'")
-                    self._executable = first_match
+                self._executable = full_exe_path
+
+    @property
+    def hostname(self) -> str:
+        return self._hostname
+
+    @hostname.setter
+    def hostname(self, new_hostname: str):
+        if self.connected:
+            raise AttributeError("Can't update hostname while connection is open")
+        self._hostname = new_hostname
+
+    @property
+    def shell(self) -> spurplus.SshShell:
+        if not self.connected:
+            raise SSHConnectionError("SSH connection must be open to access remote shell")
+        return self._shell
+
+    @property
+    def username(self) -> str:
+        return self._username
+
+    @username.setter
+    def username(self, new_username: str):
+        if self.connected:
+            raise AttributeError("Can't update username while connection is open")
+        self._username = new_username
+
+    ##########################################################
+    #                 FILE SYSTEM INTERFACE                  #
+    ##########################################################
+
+
 
     ##########################################################
     #                 CONNECTION MANAGEMENT                  #
@@ -144,7 +142,8 @@ class SshShell(ShellEnvironMixin):
             retries: int = 0,
             retry_delay: int = 1
     ) -> None:
-        # TODO: add docstring
+        # ADD DOCSTRING
+        # TODO: deal with prompting for required fields if not provided
         if self.connected:
             raise ConnectionError('already connected to a remote host. use '
                                   '`SshShell.disconnect` to disconnect from the '
@@ -162,15 +161,15 @@ class SshShell(ShellEnvironMixin):
 
         if password is None and not use_key:
             password = getpass.getpass('Password: ')
-        self.shell = spurplus.connect_with_retries(hostname=hostname,
-                                                   username=username,
-                                                   password=password,
-                                                   use_key=use_key,
-                                                   look_for_private_keys=(not use_key),
-                                                   port=port,
-                                                   connect_timeout=timeout,
-                                                   retries=retries,
-                                                   retry_period=retry_delay)
+        self._shell = spurplus.connect_with_retries(hostname=hostname,
+                                                    username=username,
+                                                    password=password,
+                                                    use_key=use_key,
+                                                    look_for_private_keys=(not use_key),
+                                                    port=port,
+                                                    connect_timeout=timeout,
+                                                    retries=retries,
+                                                    retry_period=retry_delay)
         # only update attrs if connection is successful
         self.port = port
         self.timeout = timeout
@@ -178,8 +177,17 @@ class SshShell(ShellEnvironMixin):
         self.retry_delay = retry_delay
         self.connected = True
 
+        # TODO: this may HAVE to be self.run so that correct files are
+        #  sourced, but also can't be if certain expected fields aren't
+        #  set yet
+
+        # TODO: a more robust solution for this in case BASH_FUNC_module isn't last
+        initial_env = self.shell.run(['printenv']).output.split('\nBASH_FUNC_module()')[0]
+        initial_env = dict(map(lambda x: x.split('=', maxsplit=1), initial_env.splitlines()))
+        self._environ = PseudoEnviron(initial_env=initial_env, custom_vars=self._env_additions)
+
     def disconnect(self) -> None:
-        # TODO: add docstring
+        # ADD DOCSTRING
         if not self.connected:
             raise ConnectionError('not currently connected to a remote host')
 
@@ -200,7 +208,7 @@ class SshShell(ShellEnvironMixin):
             reset_cwd: bool = False,
             reset_executable: bool = False
     ) -> None:
-        # TODO: add docstring
+        # ADD DOCSTRING
         # port, timeout, retries, retry_delay default to values for current connection
         connect_params = {
             'hostname': self.hostname,
@@ -231,12 +239,12 @@ class SshShell(ShellEnvironMixin):
     # TODO: implement os.walk?
 
     def cat(self, path: PathLike) -> str:
-        # TODO: add docstring
+        # ADD DOCSTRING
         path = str(self.resolve_path(path))
         return self.shell.check_output(['cat', path])
 
     def chdir(self, path: PathLike) -> None:
-        # TODO: add docstring
+        # ADD DOCSTRING
         path = self.resolve_path(path)
         # functionally equivalent to setting self.cwd property with checks
         self.cwd = path
@@ -248,12 +256,12 @@ class SshShell(ShellEnvironMixin):
         raise NotImplementedError
 
     def exists(self, path: PathLike) -> bool:
-        # TODO: add docstring
+        # ADD DOCSTRING
         path = self.resolve_path(path)
         return self.shell.exists(remote_path=path)
 
     def is_dir(self, path: PathLike) -> bool:
-        # TODO: add docstring
+        # ADD DOCSTRING
         try:
             return self.shell.is_dir(remote_path=path)
         except FileNotFoundError:
@@ -263,16 +271,16 @@ class SshShell(ShellEnvironMixin):
             return False
 
     def is_file(self, path: PathLike) -> bool:
-        # TODO: add docstring
-        # no straightforward way to do this between spurplus/spur/paramiko,
-        # so going for the roundabout way
+        # ADD DOCSTRING
+        # no Pythonic way to do this between spurplus/spur/paramiko,
+        # so going for the roundabout bash way
         path = self.resolve_path(path)
         output = self.shell.run([self.executable, '-c', f'test -f {path}'],
                                 allow_error=True)
         return not bool(output.return_code)
 
     def is_subdir_of(self, subdir: PathLike, parent: PathLike) -> bool:
-        # TODO: add docstring
+        # ADD DOCSTRING
         subdir = PurePosixPath(self.resolve_path(subdir))
         parent = PurePosixPath(self.resolve_path(parent))
         try:
@@ -282,7 +290,7 @@ class SshShell(ShellEnvironMixin):
             return False
 
     def listdir(self, path: PathLike = '.') -> None:
-        # TODO: add docstring
+        # ADD DOCSTRING
         path = str(self.resolve_path(path))
         self.shell.as_sftp().listdir(path)
 
@@ -293,7 +301,7 @@ class SshShell(ShellEnvironMixin):
             parents: bool = False,
             exist_ok: bool = False
     ) -> None:
-        # TODO: add docstring
+        # ADD DOCSTRING
         # mode 16877, octal equiv: '0o40755' (user has full rights, all
         # others can read/traverse)
         self.shell.mkdir(remote_path=path,
@@ -306,7 +314,7 @@ class SshShell(ShellEnvironMixin):
         self.shell.remove(remote_path=path, recursive=recursive)
 
     def resolve_path(self, path: PathLike) -> PathLike:
-        # TODO: add docstring
+        # ADD DOCSTRING
         # os.path.expanduser
         orig_type = type(path)
         path = str(path)
@@ -336,7 +344,7 @@ class SshShell(ShellEnvironMixin):
         return self.shell.stat(remote_path=path)
 
     def touch(self, path: PathLike, mode: int = 33188, exist_ok: bool = True):
-        # TODO: add docstring.
+        # ADD DOCSTRING.
         #  Functions like Pathlib.touch(). if file exists and exist_ok
         #  is True, calls equiv to os.utime to update atime and mtime
         #  like touch does.  Can't be used to change mode on existing
@@ -368,7 +376,7 @@ class SshShell(ShellEnvironMixin):
             create_directories: bool = True,
             consistent: bool = True
     ) -> None:
-        # TODO: add docstring
+        # ADD DOCSTRING
         remote_path = self.resolve_path(remote_path)
         # I don't understand why they STILL haven't implemented expandvars for pathlib...
         local_path = Path(os.path.expandvars(Path(local_path).expanduser())).resolve()
@@ -384,7 +392,7 @@ class SshShell(ShellEnvironMixin):
             create_directories: bool = True,
             consistent: bool = True
     ) -> None:
-        # TODO: add docstring
+        # ADD DOCSTRING
         local_path = Path(os.path.expandvars(Path(local_path).expanduser())).resolve()
         remote_path = self.resolve_path(remote_path)
         self.shell.put(local_path=local_path,
@@ -393,7 +401,8 @@ class SshShell(ShellEnvironMixin):
                        consistent=consistent)
 
     def read(self, path: PathLike, encoding: Union[str, None] = 'utf-8') -> Union[str, bytes]:
-        # TODO: add docstring
+        # ADD DOCSTRING
+        # TODO: fix typing to use @overload
         path = self.resolve_path(path)
         if encoding is None:
             return self.shell.read_bytes(remote_path=path)
@@ -408,7 +417,7 @@ class SshShell(ShellEnvironMixin):
             create_directories: bool = True,
             consistent: bool = True
     ) -> None:
-        # TODO: add docstring
+        # ADD DOCSTRING
         path = self.resolve_path(path)
         if encoding is None:
             self.shell.write_bytes(remote_path=path,
@@ -420,108 +429,4 @@ class SshShell(ShellEnvironMixin):
                                   text=content,
                                   encoding=encoding,
                                   create_directories=create_directories,
-                                  consistent=consistent)
-
-
-    ##########################################################
-    #                SHELL COMMAND EXECUTION                 #
-    ##########################################################
-    # command-executing methods. Three levels of simplicity vs control,
-    # sort of analogous to:
-    #   self.check_output()     --> subprocess.check_output()
-    #   self.run()              --> subprocess.run()
-    #   self.spawn_process()    --> subprocess.Popen()
-    def check_output(
-            self,
-            command: OneOrMore[str],
-            options: NoneOrMore[str] = None,
-            stderr: bool = False
-    ) -> Union[str, Tuple]:
-        # TODO: add docstring -- most basic way to run command.
-        finished_proc = self.run(command=command, options=options, allow_error=False)
-        if stderr:
-            return finished_proc.stdout.final, finished_proc.stderr.final
-        else:
-            return finished_proc.stdout.final
-
-    def run(
-            self,
-            command: OneOrMore[str],
-            options: NoneOrMore[str] = None,
-            working_dir: Optional[PathLike] = None,
-            tmp_env: Optional[Dict[str, str]] = None,
-            allow_error: bool = False
-    ) -> RemoteProcess:
-        # TODO: add docstring -- simplified interface for running
-        #  commands. For finer control, use spawn_process. Will always
-        #  wait for process to finish & return completed process
-        return self.spawn_process(command=command,
-                                  options=options,
-                                  working_dir=working_dir,
-                                  tmp_env=tmp_env,
-                                  allow_error=allow_error,
-                                  wait=True)
-
-    def spawn_process(
-            self,
-            command: OneOrMore[str],
-            options: NoneOrMore[str] = None,
-            working_dir: Optional[PathLike] = None,
-            tmp_env: Optional[Dict[str, str]] = None,
-            stdout: NoneOrMore[MswStdoutDest] = None,
-            stderr: NoneOrMore[MswStderrDest] = None,
-            stream_encoding: Union[str, None] = 'utf-8',
-            close_streams: bool = True,
-            wait: bool = False,
-            allow_error: bool = False,
-            use_pty: bool = False,
-            callback: Optional[Callable] = None,
-            callback_args: Optional[Tuple] = None,
-            callback_kwargs: Optional[Dict] = None
-    ) -> RemoteProcess:
-        # TODO: add docstring
-        # TODO: note in docstring that '-c' option is added at end automatically
-        # might just be base function for self.exec_command(block=True/False).
-        # passing list of strings is equivalent to &&-joining them
-        # if stdout/stderr are None, default to just writing to the object
-
-        # set defaults and funnel types
-        if isinstance(command, str):
-            command = [command]
-        elif isinstance(command, Sequence):
-            command = ' && '.join(command)
-
-        if options is None:
-            options = []
-        elif isinstance(options, str):
-            options = [options]
-
-        if tmp_env is not None:
-            _tmp_env = self.environ.copy()
-            _tmp_env.update(tmp_env)
-            tmp_env = _tmp_env
-
-        # format command string
-        full_command = [self.executable]
-        for opt in options:
-            full_command.extend(opt.split())
-
-        full_command.append('-c')
-        full_command.append(command)
-
-        # create RemoteProcess instance
-        proc = RemoteProcess(command=command,
-                             ssh_shell=self.shell,
-                             working_dir=working_dir,
-                             env_updates=tmp_env,
-                             stdout=stdout,
-                             stderr=stderr,
-                             stream_encoding=stream_encoding,
-                             close_streams=close_streams,
-                             wait=wait,
-                             allow_error=allow_error,
-                             use_pty=use_pty,
-                             callback=callback,
-                             callback_args=callback_args,
-                             callback_kwargs=callback_kwargs)
-        return proc.run()
+                                      consistent=consistent)
