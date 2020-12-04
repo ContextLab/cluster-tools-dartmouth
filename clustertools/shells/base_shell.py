@@ -9,7 +9,7 @@ import spur
 import spurplus
 from paramiko import SFTPAttributes
 
-from clustertools.mixins import (LocalShellMixin,
+from clustertools.shells import (LocalShellMixin,
                                  PseudoEnviron,
                                  SshShellMixin,
                                  ShellEnvironMixin)
