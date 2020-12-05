@@ -3,7 +3,7 @@ from os.path import dirname, realpath, join as opj
 from spurplus import connect_with_retries
 from .upload_scripts import upload_scripts
 from .cluster_scripts.config import job_config
-from clustertools.shared.helpers import (
+from clustertools.old.helpers import (
                         attempt_load_config,
                         fmt_remote_commands,
                         parse_config,

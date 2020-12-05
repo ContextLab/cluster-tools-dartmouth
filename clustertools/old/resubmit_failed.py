@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 from os.path import join as opj
 from spurplus import connect_with_retries
 from .cluster_scripts.config import job_config
-from clustertools.shared.helpers import (
+from clustertools.old.helpers import (
                         attempt_load_config,
                         fmt_remote_commands,
                         get_qstat,
@@ -13,7 +13,7 @@ from clustertools.shared.helpers import (
 
 
 def resubmit_failed(confirm_resubmission=False, config_path=None):
-    # TODO: add docstring
+    # ADD DOCSTRING
 
     if config_path is None:
         config = attempt_load_config()

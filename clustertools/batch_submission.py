@@ -12,8 +12,8 @@ class BatchSubmission:
     def __init__(
             self,
             remote_root: PathLike = None,
-            datadir: PathLike = 'data',
-            scriptdir: PathLike = 'scripts',
+            data_dir: PathLike = 'data',
+            script_dir: PathLike = 'scripts',
             modules: NoneOrMore = None,
             env_type: Optional[str] = None,
             env_name: Optional[str] = None,
@@ -26,11 +26,11 @@ class BatchSubmission:
             notify_on: Optional[str] = None,         # TODO: find out default value
             notify_at: Optional[str] = None          # TODO: find out default value
     ):
-        # TODO: add docstring
+        # ADD DOCSTRING
         # project structure setup
         self.remote_dir = Path(remote_root)
-        self.datadir = self.remote_dir.joinpath(datadir)
-        self.scriptdir = self.remote_dir.joinpath(scriptdir)
+        self.data_dir = self.remote_dir.joinpath(data_dir)
+        self.script_dir = self.remote_dir.joinpath(script_dir)
 
         # job environment setup
         if isinstance(modules, str):
