@@ -19,7 +19,7 @@ from clustertools.shared.typing import (MswStderrDest,
                                         PathLike,
                                         Sequence)
 
-
+from clustertools.shells.base_shell import BaseShell
 ## noinspection PyAttributeOutsideInit,PyUnresolvedReferences
 class SshShellMixin:
     # ADD DOCSTRING
@@ -27,13 +27,13 @@ class SshShellMixin:
     #  spur.SshShell.upload/download method
 
     @property
-    def cwd(self) -> PurePosixPath:
+    def cwd(self: BaseShell) -> PurePosixPath:
         if not self.connected:
             raise SSHConnectionError("SSH connection must be open to access remote file system")
         return self._cwd
 
     @cwd.setter
-    def cwd(self, new_cwd: Optional[PathLike]) -> None:
+    def cwd(self: BaseShell, new_cwd: Optional[PathLike]) -> None:
         if not self.connected:
             # can't validate if no connected (will be done on connecting)
             self._cwd = PurePosixPath(new_cwd)
@@ -299,7 +299,7 @@ class SshShellMixin:
             username: Optional[str] = None,
             password: Optional[str] = None,
             use_key: bool = False,
-            port: int = 22,
+            port: Optional[int] = None,
             timeout: int = 60,
             retries: int = 0,
             retry_delay: int = 1

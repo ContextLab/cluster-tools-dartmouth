@@ -15,7 +15,6 @@ from clustertools.shared.typing import (MswStderrDest,
                                         PathLike,
                                         Sequence)
 
-
 ## noinspection PyAttributeOutsideInit,PyUnresolvedReferences
 class BaseShell:
     # ADD DOCSTRING
@@ -63,7 +62,7 @@ class BaseShell:
         self._cache = dict()
         self.connected = False
         self.port = connection_kwargs.get('port')
-        if not _local and connect:
+        if connect and not _local:
             self.connect(password=password, **connection_kwargs)
 
     def __enter__(self):
@@ -119,11 +118,14 @@ class BaseShell:
             cwd: Optional[PathLike] = None,
             strict: bool = False
     ) -> PathLike:
-
+        path_type = type(path)
         # substitute environment variables
         path = self._expandvars(path=path, pathsep=os.path.sep)
-        # expand user (tilde), resolve relative to CWD, replace symlinks
-        return type(path)(Path(path).expanduser().resolve(strict=strict))
+        # expand tilde
+        path = os.path.expanduser(path)
+        # resolve relative to CWD, replace symlinks, restore to input type
+        cwd = Path.cwd() if cwd is None else cwd
+        return path_type(Path(cwd, path).resolve(strict=strict))
 
     def _resolve_path_remote(
             self,
