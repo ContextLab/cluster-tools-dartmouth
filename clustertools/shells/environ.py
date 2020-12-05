@@ -32,26 +32,32 @@ class PseudoEnviron:
 
     # explicitly overridden methods for coercing keys/values to str
     def __getitem__(self, key):
-        return self._current_env[_to_str(key)]
+        return self._current_env[key]
 
     def __setitem__(self, key, value):
-        self._current_env[_to_str(key)] = _to_str(value)
+        if not (isinstance(key, str) and isinstance(value, str)):
+            raise TypeError("All keys and values in mapping must be 'str'")
+        self._current_env[key] = value
+
 
     def __delitem__(self, key):
-        del self._current_env[_to_str(key)]
+        del self._current_env[key]
 
-    # noinspection PyPep8Naming
-    def update(self, *E, **F) -> None:
-        # ADD DOCSTRING
-        # params named to match dict.update() signature
-        E = dict(E[0])
-        E.update(F)
-        E = {_to_str(k): _to_str(v) for k, v in E.items()}
-        self._current_env.update(**E)
+        # noinspection PyPep8Naming
+        def update(self, *E, **F) -> None:
+            # ADD DOCSTRING
+            # params named to match dict.update() signature
+            E = dict(E[0])
+            E.update(F)
+            if not all(isinstance(i, str) for i in sum(E.items(), ())):
+                raise TypeError("All keys and values in mapping must be 'str'")
+            self._current_env.update(**E)
 
-    def setdefault(self, key: str, default: Optional[str] = None) -> None:
+    def setdefault(self, key: str, default: str = '') -> None:
         # ADD DOCSTRING
-        self._current_env.setdefault(_to_str(key), _to_str(default))
+        if not (isinstance(key, str) and isinstance(default, str)):
+            raise TypeError("All keys and values in mapping must be 'str'")
+        self._current_env.setdefault(key, default)
 
     def reset(
             self,
@@ -61,7 +67,6 @@ class PseudoEnviron:
         # ADD DOCSTRING
         # TODO: test all combinations of conditions for this
         # options for 'if_custom': remove, keep, raise
-        key = _to_str(key)
         if key in self._initial_env:
             self._current_env[key] = self._initial_env[key]
         elif if_custom == 'raise':
@@ -81,7 +86,3 @@ class PseudoEnviron:
     def reset_all(self) -> None:
         # ADD DOCSTRING
         self._current_env = self._initial_env
-
-
-def _to_str(obj: Any) -> str:
-    return '' if obj is None else str(obj)

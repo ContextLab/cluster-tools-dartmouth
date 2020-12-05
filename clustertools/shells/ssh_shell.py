@@ -3,7 +3,7 @@ import locale
 import os
 import warnings
 from pathlib import PurePath, PurePosixPath
-from typing import Callable, Optional, Union, Tuple, Dict
+from typing import Callable, List, Optional, Union, Tuple, Dict
 
 import spurplus
 from paramiko import SFTPAttributes
@@ -20,7 +20,7 @@ from clustertools.shared.typing import (MswStderrDest,
                                         Sequence)
 
 
-# noinspection PyAttributeOutsideInit,PyUnresolvedReferences
+## noinspection PyAttributeOutsideInit,PyUnresolvedReferences
 class SshShellMixin:
     # ADD DOCSTRING
     # TODO: implement recursive option for get/put that uses
@@ -166,7 +166,7 @@ class SshShellMixin:
                                 allow_error=True)
         return not bool(output.return_code)
 
-    def listdir(self, path: PathLike = '.') -> None:
+    def listdir(self, path: PathLike = '.') -> List[str]:
         # ADD DOCSTRING
         path = self.resolve_path(str(path), strict=True)
         return self.shell.as_sftp().listdir(path)

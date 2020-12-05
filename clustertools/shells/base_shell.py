@@ -16,13 +16,13 @@ from clustertools.shared.typing import (MswStderrDest,
                                         Sequence)
 
 
-# noinspection PyUnresolvedReferences
+## noinspection PyAttributeOutsideInit,PyUnresolvedReferences
 class BaseShell:
     # ADD DOCSTRING
     # TODO: test use as context manager when spawning a process that runs
     #  longer than the context block
     def __new__(cls, *args, **kwargs):
-        shell_mixin = LocalShellMixin if kwargs.pop('_local') else SshShellMixin
+        shell_mixin = LocalShellMixin if kwargs.get('_local') else SshShellMixin
         bases = (shell_mixin, *cls.__bases__)
         return super().__new__(type(cls.__name__, bases, dict(cls.__dict__)))
 
@@ -30,6 +30,7 @@ class BaseShell:
             self,
             hostname: Optional[str] = None,
             username: Optional[str] = None,
+            password: Optional[str] = None,
             cwd: Optional[PathLike] = None,
             executable: Optional[PathLike] = None,
             env_additions: Optional[Dict[str, str]] = None,
@@ -57,8 +58,8 @@ class BaseShell:
         self._executable = executable
         self._shell = None
         self.connected = False
-        if connect:
-            self.connect(**connection_kwargs)
+        if not _local and connect:
+            self.connect(password=password, **connection_kwargs)
 
     def __enter__(self):
         return self
@@ -87,11 +88,11 @@ class BaseShell:
 
     def putenv(self, key: str, value: str) -> None:
         # ADD DOCSTRING
-        self.environ[_to_str(key)] = _to_str(value)
+        self.environ[key] = value
 
     def unsetenv(self, key: str) -> None:
         # ADD DOCSTRING
-        del self.environ[_to_str(key)]
+        del self.environ[key]
 
     ##########################################################
     #                 FILE SYSTEM INTERFACE                  #
@@ -225,6 +226,8 @@ class BaseShell:
             _tmp_env = self.environ.copy()
             _tmp_env.update(tmp_env)
             tmp_env = _tmp_env
+        else:
+            tmp_env = dict(self.environ)
 
         # format command string
         full_command = [self.executable]
