@@ -1,19 +1,25 @@
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Union
 
+from clustertools.cluster import Cluster
 from clustertools.shared.typing import NoneOrMore, OneOrMore, PathLike
 
 
-class Project:
+class ProjectHandlerMixin:
+    def _setup_
+
+
+
     def __init__(
             self,
             name: str,
+            cluster: Cluster,
             root_dir: Optional[PathLike] = None,
             submitter_script: Optional[PathLike] = None,
             job_script: Optional[Path] = None,
             collector_script: Optional[Path] = None,
-            job_params: Dict[str, Union[str, int]] = None,
-            
+            config_file: Dict[str, Union[str, int]] = None,
+
     ):
         # ADD DOCSTRING
         pass

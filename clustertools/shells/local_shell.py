@@ -84,7 +84,11 @@ class LocalShellMixin:
 
     @property
     def hostname(self) -> str:
-        return socket.gethostname()
+        try:
+            return self._cache['hostname']
+        except KeyError:
+            self._cache['hostname'] = socket.gethostname()
+            return self._cache['hostname']
 
     @hostname.setter
     def hostname(self, new_hostname) -> NoReturn:
@@ -98,7 +102,11 @@ class LocalShellMixin:
 
     @property
     def username(self) -> str:
-        return getpass.getuser()
+        try:
+            return self._cache['username']
+        except KeyError:
+            self._cache['username'] = getpass.getuser()
+            return self._cache['username']
 
     @username.setter
     def username(self, new_username) -> NoReturn:
@@ -173,7 +181,8 @@ class LocalShellMixin:
         else:
             path.unlink(missing_ok=False)
 
-    self.resolve_path = self._resolve_path_remote
+    def resolve_path(self, path: PathLike, strict: bool = False) -> PathLike:
+        return self._resolve_path_local(path=path, cwd=self.cwd, strict=strict)
 
     def stat(self, path: PathLike = None) -> os.stat_result:
         # ADD DOCSTRING

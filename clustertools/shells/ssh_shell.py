@@ -202,7 +202,8 @@ class SshShellMixin:
         path = self.resolve_path(path, strict=True)
         self.shell.remove(remote_path=path, recursive=recursive)
 
-    self.resolve_path = self._resolve_path_remote
+    def resolve_path(self, path: PathLike, strict: bool = False) -> PathLike:
+        return self._resolve_path_remote(path=path, cwd=self.cwd, strict=strict)
 
     def stat(self, path: PathLike = None) -> SFTPAttributes:
         path = self.resolve_path(path, strict=True)
@@ -267,7 +268,7 @@ class SshShellMixin:
         # ADD DOCSTRING
         # TODO: write a version for directories that recurses up to max_levels
         remote_path = self.resolve_path(remote_path, strict=True)
-        local_path = self._resolve_path_local(local_path, strict=False)
+        local_path = self._resolve_path_local(local_path, cwd=os.getcwd(), strict=False)
         return self.shell.get(remote_path=remote_path,
                               local_path=local_path,
                               create_directories=create_directories,
@@ -282,7 +283,7 @@ class SshShellMixin:
     ) -> None:
         # ADD DOCSTRING
         # TODO: write a recursive version similar to self.get
-        local_path = self._resolve_path_local(local_path, strict=True)
+        local_path = self._resolve_path_local(local_path, cwd=os.getcwd(), strict=True)
         remote_path = self.resolve_path(remote_path, strict=False)
         return self.shell.put(local_path=local_path,
                               remote_path=remote_path,
@@ -312,12 +313,7 @@ class SshShellMixin:
                 'one, or `SshShell.reconnect` to reset the connection to the '
                 'current host')
 
-        # for each param, priority is passed value > object attr (> default value)
         port = port or self.port or 22
-        timeout = timeout or self.timeout or 60
-        retries = retries or self.retries or 0
-        retry_delay = retry_delay or self.retry_delay or 1
-
         hostname = hostname or self.hostname or input("Hostname: ")
         username = username or self.username or input("Username: ")
         if password is None and not use_key:
@@ -325,7 +321,6 @@ class SshShellMixin:
         self._shell = spurplus.connect_with_retries(hostname=hostname,
                                                     username=username,
                                                     password=password,
-                                                    use_key=use_key,
                                                     look_for_private_keys=(not use_key),
                                                     port=port,
                                                     connect_timeout=timeout,
@@ -333,9 +328,6 @@ class SshShellMixin:
                                                     retry_period=retry_delay)
         # only update attrs if connection is successful
         self.port = port
-        self.timeout = timeout
-        self.retries = retries
-        self.retry_delay = retry_delay
         self.connected = True
 
         if self._environ is None:
@@ -353,11 +345,11 @@ class SshShellMixin:
     def disconnect(self) -> None:
         # ADD DOCSTRING
         if not self.connected:
-            raise ConnectionError('not currently connected to a remote host')
+            raise SSHConnectionError('Not currently connected to a remote host')
 
         self.shell.close()
         self.connected = False
-        self.port = self.timeout = self.retries = self.retry_delay = None
+        self.port = None
 
 
     def reconnect(
@@ -365,9 +357,9 @@ class SshShellMixin:
             password: Optional[str] = None,
             use_key: bool = False,
             port: Optional[int] = None,
-            timeout: Optional[int] = None,
-            retries: Optional[int] = None,
-            retry_delay: Optional[int] = None,
+            timeout: int = 60,
+            retries: int = 1,
+            retry_delay: int = 0,
             reset_env: bool = False,
             reset_cwd: bool = False,
             reset_executable: bool = False
@@ -380,9 +372,9 @@ class SshShellMixin:
             'password': password,
             'use_key': use_key,
             'port': port or self.port,
-            'timeout': timeout or self.timeout,
-            'retries': retries or self.retries,
-            'retry_delay': retry_delay or self.retry_delay
+            'timeout': timeout,
+            'retries': retries,
+            'retry_delay': retry_delay
         }
         if reset_env:
             self._environ = None

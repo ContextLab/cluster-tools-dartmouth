@@ -24,6 +24,8 @@ class BaseShell:
     def __new__(cls, *args, **kwargs):
         shell_mixin = LocalShellMixin if kwargs.get('_local') else SshShellMixin
         bases = (shell_mixin, *cls.__bases__)
+        # TODO: could vary the name here based on which mixin is used as
+        #  long as it doesn't mess with Cluster inheritance
         return super().__new__(type(cls.__name__, bases, dict(cls.__dict__)))
 
     def __init__(
@@ -57,7 +59,10 @@ class BaseShell:
         self._cwd = cwd
         self._executable = executable
         self._shell = None
+        # for property result caching
+        self._cache = dict()
         self.connected = False
+        self.port = connection_kwargs.get('port')
         if not _local and connect:
             self.connect(password=password, **connection_kwargs)
 
@@ -68,11 +73,6 @@ class BaseShell:
         if self.connected:
             self.disconnect()
         return
-
-    def getcwd(self) -> str:
-        # ADD DOCSTRING
-        # convenience method to get stringify self.cwd (like os.getcwd)
-        return str(self.cwd)
 
     ##########################################################
     #                 ENVIRONMENT MANAGEMENT                 #
@@ -113,13 +113,24 @@ class BaseShell:
             path = path_type(pathsep.join(parts).replace('//', '/'))
         return path
 
-    def _resolve_path_local(self, path: PathLike, strict: bool = False) -> PathLike:
+    def _resolve_path_local(
+            self,
+            path: PathLike,
+            cwd: Optional[PathLike] = None,
+            strict: bool = False
+    ) -> PathLike:
+
         # substitute environment variables
         path = self._expandvars(path=path, pathsep=os.path.sep)
         # expand user (tilde), resolve relative to CWD, replace symlinks
         return type(path)(Path(path).expanduser().resolve(strict=strict))
 
-    def _resolve_path_remote(self, path: PathLike, strict: bool = False) -> PathLike:
+    def _resolve_path_remote(
+            self,
+            path: PathLike,
+            cwd: PathLike,
+            strict: bool = False
+    ) -> PathLike:
         # substitute environment variables
         path = self._expandvars(path=path, pathsep='/')
         # the rest has to be done manually because we can't use any
@@ -136,7 +147,7 @@ class BaseShell:
         # certain other methods that aren't guaranteed to have been used
         # before this
         if not path.startswith('/'):
-            path = os.path.join(self.cwd, path)
+            path = os.path.join(cwd, path)
         full_path = os.path.normpath(path)
         if strict and not self.exists(full_path):
             # format follows exception raised for pathlib.Path.resolve(strict=True)
@@ -149,6 +160,11 @@ class BaseShell:
         path = self.resolve_path(path)
         # functionally equivalent to setting self.cwd property with checks
         self.cwd = path
+
+    def getcwd(self) -> str:
+        # ADD DOCSTRING
+        # convenience method to get stringify self.cwd (like os.getcwd)
+        return str(self.cwd)
 
     ##########################################################
     #                SHELL COMMAND EXECUTION                 #
