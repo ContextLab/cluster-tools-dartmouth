@@ -313,13 +313,13 @@ class SshShellMixin:
                 'current host')
 
         # for each param, priority is passed value > object attr (> default value)
-        hostname = hostname or self.hostname
-        username = username or self.username
         port = port or self.port or 22
         timeout = timeout or self.timeout or 60
         retries = retries or self.retries or 0
         retry_delay = retry_delay or self.retry_delay or 1
 
+        hostname = hostname or self.hostname or input("Hostname: ")
+        username = username or self.username or input("Username: ")
         if password is None and not use_key:
             password = getpass.getpass('Password: ')
         self._shell = spurplus.connect_with_retries(hostname=hostname,

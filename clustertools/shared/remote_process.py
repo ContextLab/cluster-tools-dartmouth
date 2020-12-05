@@ -17,11 +17,12 @@ from clustertools.shared.typing import (MswStderrDest,
 # TODO: ensure that all_error=False raises exception in main thread when wait=False
 # TODO?: change allow_error={True,False} to on_error={'raise','warn','allow'/'ignore'/'suppress'}
 class RemoteProcess:
-    # TODO: add docstring
+    # ADD DOCSTRING
+    # TODO: this class could use some refactoring...
     def __init__(
             self,
             command: OneOrMore[str],
-            ssh_shell: Union[spurplus.SshShell, spur.SshShell],
+            ssh_shell: Union[spurplus.SshShell, spur.LocalShell],
             working_dir: Optional[PathLike] = None,
             env_updates: Optional[Dict[str, str]] = None,
             stdout: NoneOrMore[MswStdoutDest] = None,
@@ -35,7 +36,7 @@ class RemoteProcess:
             callback_args: Optional[Tuple] = None,
             callback_kwargs: Optional[Dict] = None
     ) -> None:
-        # TODO: add docstring
+        # ADD DOCSTRING
         #  also note that command should be pre-formatted at this point
         self._command = command
         self._ssh_shell = ssh_shell
@@ -56,7 +57,7 @@ class RemoteProcess:
         self.pid: Optional[int] = None
         self._thread: Optional[Thread] = None
         self.return_code: Optional[int] = None
-        self.callback_return: Any = None
+        self.callback_result: Any = None
         # open streams as late as possible
         self.stdout = MultiStreamWrapper(stdout, encoding=stream_encoding)
         self.stderr = MultiStreamWrapper(stderr, encoding=stream_encoding)
@@ -73,7 +74,7 @@ class RemoteProcess:
             self.return_code = self._proc._result.return_code
             if self.return_code == 0:
                 # only run callback if no errors raised
-                self.callback_return = self._callback()
+                self.callback_result = self._callback()
             elif not self._allow_error:
                 raise self._proc._result.to_error()
 
@@ -112,7 +113,7 @@ class RemoteProcess:
 
         return self
 
-    def run_callback(self, update_stored=False):
+    def run_callback(self, overwrite_result=False):
         if not self.started:
             raise SSHProcessError("The processes has not been started. "
                                   "Use 'RemoteProcess.run()' to start the process.")
@@ -124,8 +125,8 @@ class RemoteProcess:
                                   "'RemoteProcess.terminate()', "
                                   "'RemoteProcess.kill()'")
         new_result = self._callback()
-        if update_stored:
-            self.callback_return = new_result
+        if self.callback_result is None or overwrite_result:
+            self.callback_result = new_result
 
         return new_result
 

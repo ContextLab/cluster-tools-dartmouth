@@ -12,7 +12,7 @@ from typing import (
 )
 
 
-PathLike = Union[str, PurePosixPath]
+PathLike = Union[Path, PurePosixPath, str]
 
 T = TypeVar('T')
 OneOrMore = Union[T, Sequence[T]]
