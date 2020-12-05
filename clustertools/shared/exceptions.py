@@ -12,6 +12,12 @@ class SSHConnectionError(ClusterToolsError):
 
 
 class SSHProcessError(ClusterToolsError, ProcessLookupError):
-    def __init__(self, message: Optional[str]):
+    def __init__(self, message: str = ''):
+        super().__init__(message)
+        self.message = message
+
+
+class ClusterProjectError(ClusterToolsError):
+    def __init__(self, message: str = ''):
         super().__init__(message)
         self.message = message
