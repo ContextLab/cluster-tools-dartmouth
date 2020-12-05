@@ -37,24 +37,33 @@ class SshShellMixin:
         if not self.connected:
             # can't validate if no connected (will be done on connecting)
             self._cwd = PurePosixPath(new_cwd)
-        elif new_cwd is None:
-            # internal shortcut to skip validation when
-            # defaulting/resetting cwd to $HOME
-            self._cwd = PurePosixPath(self.environ.get('HOME'))
         else:
-            new_cwd = PurePosixPath(new_cwd)
-            if not new_cwd.is_absolute():
-                raise AttributeError('Working directory must be an absolute path.')
+            old_pwd = self.getenv('OLDPWD')
             try:
-                assert self.shell.is_dir(new_cwd)
-            except AssertionError as e:
-                # new_cwd points to a file
-                raise NotADirectoryError(f"{new_cwd}: Not a directory") from e
-            except FileNotFoundError as e:
-                # new_cwd doesn't exist
-                raise FileNotFoundError(f"{new_cwd}: No such file or directory") from e
+                if new_cwd is None:
+                    # internal shortcut to skip validation when
+                    # defaulting/resetting cwd to $HOME
+                    self._cwd = PurePosixPath(self.environ.get('HOME'))
+                else:
+                    new_cwd = PurePosixPath(new_cwd)
+                    if not new_cwd.is_absolute():
+                        raise AttributeError('Working directory must be an absolute path.')
+                    try:
+                        assert self.shell.is_dir(new_cwd)
+                    except AssertionError as e:
+                        # new_cwd points to a file
+                        raise NotADirectoryError(f"{new_cwd}: Not a directory") from e
+                    except FileNotFoundError as e:
+                        # new_cwd doesn't exist
+                        raise FileNotFoundError(f"{new_cwd}: No such file or directory") from e
+                    else:
+                        self._cwd = new_cwd
+            except:
+                raise
             else:
-                self._cwd = new_cwd
+                # same as cd'ing, old $PWD becomes $OLDPWD, new self.cwd becomes $PWD
+                self.putenv('OLDPWD', old_pwd)
+                self.putenv('PWD', new_cwd)
 
     @property
     def environ(self) -> PseudoEnviron:
@@ -74,7 +83,7 @@ class SshShellMixin:
         # TODO: checking /etc/shells MIGHT be less efficient than
         #  creating/running a RemoteProcess (which has to be done so
         #  full $PATH is set) but would enforce only allowing actual
-        #  shells to be set, rather than any executable file
+        #  shells, rather than any executable file
         if not self.connected:
             # can't validate new_exe if not connected (will be done on connecting)
             self._executable = str(new_exe)
@@ -157,16 +166,6 @@ class SshShellMixin:
                                 allow_error=True)
         return not bool(output.return_code)
 
-    # def is_subdir_of(self, subdir: PathLike, parent: PathLike) -> bool:
-    #     # ADD DOCSTRING
-    #     subdir = PurePosixPath(self.resolve_path(subdir))
-    #     parent = PurePosixPath(self.resolve_path(parent))
-    #     try:
-    #         subdir.relative_to(parent)
-    #         return True
-    #     except ValueError:
-    #         return False
-
     def listdir(self, path: PathLike = '.') -> None:
         # ADD DOCSTRING
         path = self.resolve_path(str(path), strict=True)
@@ -203,39 +202,7 @@ class SshShellMixin:
         path = self.resolve_path(path, strict=True)
         self.shell.remove(remote_path=path, recursive=recursive)
 
-    def resolve_path(self, path: PathLike, strict: bool = False) -> PathLike:
-        # ADD DOCSTRING
-        # note that this won't account for an environment variable that
-        # references another environment variable, but neither does
-        # os.path.expandvars
-        path_type = type(path)
-        path = str(path)
-        # os.path.expandvars, but using self.environ
-        if '$' in path:
-            parts = path.split('/')
-            for ix, p in enumerate(parts):
-                if p.startswith('$'):
-                    parts[ix] = self.environ.get(p[1:].strip('{}'), default=p)
-            path = '/'.join(parts)
-        # os.path.expanduser (could implement this for other users using
-        # pwd module, but probably not worthwhile)
-        path = path.replace(f'~{self.username}', self.environ.get('HOME'), 1)
-        path = path.replace('~', self.environ.get('HOME'), 1)
-        # fix any joining inconsistencies
-        path = path.replace('//', '/')
-        # os.path.realpath (os.path.abspath + resolving symlinks)
-        # may be better to use self.shell.as_sftp()._sftp.normalize(path),
-        # but ReconnectingSFTP's _sftp attr is only set after calling
-        # certain other methods that aren't guaranteed to have been used
-        # before this
-        if not path.startswith('/'):
-            path = os.path.join(self.cwd, path)
-        full_path = os.path.normpath(path)
-        if strict and not self.exists(full_path):
-            # format follows exception raised for pathlib.Path.resolve(strict=True)
-            raise FileNotFoundError("[Errno 2] No such file or directory: "
-                                    f"'{full_path}'")
-        return full_path
+    self.resolve_path = self._resolve_path_remote
 
     def stat(self, path: PathLike = None) -> SFTPAttributes:
         path = self.resolve_path(path, strict=True)
@@ -287,9 +254,40 @@ class SshShellMixin:
                                      create_directories=False,
                                      consistent=consistent)
 
-    
+    ##########################################################
+    #                     DATA TRANSFER                      #
+    ##########################################################
+    def get(
+            self,
+            remote_path: PathLike,
+            local_path: PathLike,
+            create_directories: bool = True,
+            consistent: bool = False
+    ) -> None:
+        # ADD DOCSTRING
+        # TODO: write a version for directories that recurses up to max_levels
+        remote_path = self.resolve_path(remote_path, strict=True)
+        local_path = self._resolve_path_local(local_path, strict=False)
+        return self.shell.get(remote_path=remote_path,
+                              local_path=local_path,
+                              create_directories=create_directories,
+                              consistent=consistent)
 
-
+    def put(
+            self,
+            local_path: PathLike,
+            remote_path: PathLike,
+            create_directories: bool = True,
+            consistent: bool = False
+    ) -> None:
+        # ADD DOCSTRING
+        # TODO: write a recursive version similar to self.get
+        local_path = self._resolve_path_local(local_path, strict=True)
+        remote_path = self.resolve_path(remote_path, strict=False)
+        return self.shell.put(local_path=local_path,
+                              remote_path=remote_path,
+                              create_directories=create_directories,
+                              consistent=consistent)
 
     ##########################################################
     #                 CONNECTION MANAGEMENT                  #
@@ -308,11 +306,11 @@ class SshShellMixin:
         # ADD DOCSTRING
         # TODO: deal with prompting for required fields if not provided
         if self.connected:
-            raise ConnectionError('already connected to a remote host. use '
-                                  '`SshShell.disconnect` to disconnect from the '
-                                  'current host before connecting to a new one, '
-                                  'or `SshShell.reconnect` to reset the connection '
-                                  'to the current host')
+            raise SSHConnectionError(
+                'already connected to a remote host. use `SshShell.disconnect` '
+                'to disconnect from the current host before connecting to a new '
+                'one, or `SshShell.reconnect` to reset the connection to the '
+                'current host')
 
         # for each param, priority is passed value > object attr (> default value)
         hostname = hostname or self.hostname
@@ -340,14 +338,17 @@ class SshShellMixin:
         self.retry_delay = retry_delay
         self.connected = True
 
-        # TODO: this may HAVE to be self.run so that correct files are
-        #  sourced, but also can't be if certain expected fields aren't
-        #  set yet
-
-        # TODO: a more robust solution for this in case BASH_FUNC_module isn't last
-        initial_env = self.shell.run(['printenv']).output.split('\nBASH_FUNC_module()')[0]
-        initial_env = dict(map(lambda x: x.split('=', maxsplit=1), initial_env.splitlines()))
-        self._environ = PseudoEnviron(initial_env=initial_env, custom_vars=self._env_additions)
+        if self._environ is None:
+            # read environment variables
+            tmp_exe = self.executable or '/bin/bash'
+            printenv_command = [tmp_exe, '-lc', 'printenv']
+            # TODO: a more robust solution for this in case BASH_FUNC_module isn't last
+            initial_env = self.shell.run(printenv_command).output.split('\nBASH_FUNC_module()')[0]
+            initial_env = dict(map(lambda x: x.split('=', maxsplit=1), initial_env.splitlines()))
+            self._environ = PseudoEnviron(initial_env=initial_env, custom_vars=self._env_additions)
+            # initial validation of properties that depend on environment
+            self.cwd = self._cwd
+            self.executable = self._executable
 
     def disconnect(self) -> None:
         # ADD DOCSTRING
@@ -373,7 +374,7 @@ class SshShellMixin:
     ) -> None:
         # ADD DOCSTRING
         # port, timeout, retries, retry_delay default to values for current connection
-        connect_params = {
+        connection_params = {
             'hostname': self.hostname,
             'username': self.username,
             'password': password,
@@ -384,80 +385,11 @@ class SshShellMixin:
             'retry_delay': retry_delay or self.retry_delay
         }
         if reset_env:
-            self.resetenv()
-
-        self.disconnect()
-        self.connect(**connect_params)
+            self._environ = None
+            self._env_additions = dict()
         if reset_cwd:
             self.cwd = None
         if reset_executable:
             self.executable = None
-
         self.disconnect()
-        self.connect()
-
-
-    ##########################################################
-    #                 FILE TRANSFER & ACCESS                 #
-    ##########################################################
-    def get(
-            self,
-            remote_path: PathLike,
-            local_path: PathLike,
-            create_directories: bool = True,
-            consistent: bool = True
-    ) -> None:
-        # ADD DOCSTRING
-        remote_path = self.resolve_path(remote_path)
-        # I don't understand why they STILL haven't implemented expandvars for pathlib...
-        local_path = Path(os.path.expandvars(Path(local_path).expanduser())).resolve()
-        self.shell.get(remote_path=remote_path,
-                       local_path=local_path,
-                       create_directories=create_directories,
-                       consistent=consistent)
-
-    def put(
-            self,
-            local_path: PathLike = None,
-            remote_path: PathLike = None,
-            create_directories: bool = True,
-            consistent: bool = True
-    ) -> None:
-        # ADD DOCSTRING
-        local_path = Path(os.path.expandvars(Path(local_path).expanduser())).resolve()
-        remote_path = self.resolve_path(remote_path)
-        self.shell.put(local_path=local_path,
-                       remote_path=remote_path,
-                       create_directories=create_directories,
-                       consistent=consistent)
-
-    def read(self, path: PathLike, encoding: Union[str, None] = 'utf-8') -> Union[str, bytes]:
-        # ADD DOCSTRING
-        # TODO: fix typing to use @overload
-        path = self.resolve_path(path)
-        if encoding is None:
-            return self.shell.read_bytes(remote_path=path)
-        else:
-            return self.shell.read_text(remote_path=path, encoding=encoding)
-
-    def write(
-            self,
-            path: PathLike,
-            content: Union[str, bytes],
-            encoding: Union[str, None] = 'utf-8',
-            create_directories: bool = True,
-            consistent: bool = True
-    ) -> None:
-        # ADD DOCSTRING
-        path = self.resolve_path(path)
-        if encoding is None:
-            self.shell.write_bytes(remote_path=path,
-                                   data=content,
-                                   create_directories=create_directories,
-                                   consistent=consistent)
-        else:
-            self.shell.write_text(remote_path=path,
-                                  text=content,
-                                  encoding=encoding,
-                                  create_directories=create_directories,
-                                      consistent=consistent)
+        self.connect(**connection_params)

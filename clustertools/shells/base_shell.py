@@ -22,6 +22,8 @@ from clustertools.shared.typing import (MswStderrDest,
 # noinspection PyUnresolvedReferences
 class BaseShell:
     # ADD DOCSTRING
+    # TODO: test use as context manager when spawning a process that runs
+    #  longer than the context block
     def __new__(cls, *args, **kwargs):
         shell_mixin = LocalShellMixin if kwargs.pop('_local') else SshShellMixin
         bases = (shell_mixin, *cls.__bases__)
@@ -38,24 +40,36 @@ class BaseShell:
             _local: bool = False,
             **connection_kwargs
     ) -> None:
-        # ADD DOCSTRING
+        # ADD DOCSTRING -- note circular issue: if using an executable
+        #  other than /bin/bash, you should either pass it to
+        #  constructor or set it before connecting, otherwise some
+        #  environment variables may missing or incorrect. When first
+        #  connecting, environment variables are read from output of
+        #  printenv, which is affected by the executable used to run the
+        #  command. So even though $SHELL will be read and used as the
+        #  default executable if one is not explicitly before
+        #  connecting, other environment variables will reflect having
+        #  been read from a bash shell
+
         # TODO: make _local required but keyword-only?
         self._hostname = hostname
         self._username = username
         self._env_additions = env_additions or dict()
         self._environ = None
+        self._cwd = cwd
+        self._executable = executable
         self._shell = None
         self.connected = False
-
-        self.cwd = cwd
-        self.executable = executable
-
+        if connect:
+            self.connect(**connection_kwargs)
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        return self.close()
+        if self.connected:
+            self.disconnect()
+        return
 
     def getcwd(self) -> str:
         # ADD DOCSTRING
@@ -85,6 +99,52 @@ class BaseShell:
     ##########################################################
     #                 FILE SYSTEM INTERFACE                  #
     ##########################################################
+    def _expandvars(self, path: PathLike, pathsep: str = '/') -> PathLike:
+        # os.path.expandvars, but uses self.environ.
+        # Note: that this doesn't account for an environment variable
+        # that references  another environment variable, but neither
+        # does os.path.expandvars
+        if '$' in path:
+            path_type = type(path)
+            parts = str(path).split(pathsep)
+            for ix, p in enumerate(parts):
+                if p.startswith('$'):
+                    parts[ix] = self.environ.get(p[1:].strip('{}'), default=p)
+            # fix any substitution or joining inconsistencies, restore
+            # to input type
+            path = path_type(pathsep.join(parts).replace('//', '/'))
+        return path
+
+    def _resolve_path_local(self, path: PathLike, strict: bool = False) -> PathLike:
+        # substitute environment variables
+        path = self._expandvars(path=path, pathsep=os.path.sep)
+        # expand user (tilde), resolve relative to CWD, replace symlinks
+        return type(path)(Path(path).expanduser().resolve(strict=strict))
+
+    def _resolve_path_remote(self, path: PathLike, strict: bool = False) -> PathLike:
+        # substitute environment variables
+        path = self._expandvars(path=path, pathsep='/')
+        # the rest has to be done manually because we can't use any
+        # "concrete" pathlib.Path or os.path methods
+        path_type = type(path)
+        path = str(path)
+        # os.path.expanduser (could implement this for other users using
+        # pwd module, but probably not worthwhile)
+        path = path.replace(f'~{self.username}', self.environ.get('HOME'), 1)
+        path = path.replace('~', self.environ.get('HOME'), 1)
+        # os.path.realpath (os.path.abspath + resolving symlinks)
+        # may be better to use self.shell.as_sftp()._sftp.normalize(path),
+        # but ReconnectingSFTP's _sftp attr is only set after calling
+        # certain other methods that aren't guaranteed to have been used
+        # before this
+        if not path.startswith('/'):
+            path = os.path.join(self.cwd, path)
+        full_path = os.path.normpath(path)
+        if strict and not self.exists(full_path):
+            # format follows exception raised for pathlib.Path.resolve(strict=True)
+            raise FileNotFoundError("[Errno 2] No such file or directory: "
+                                    f"'{full_path}'")
+        return path_type(full_path)
 
     def chdir(self, path: PathLike) -> None:
         # ADD DOCSTRING
@@ -92,9 +152,107 @@ class BaseShell:
         # functionally equivalent to setting self.cwd property with checks
         self.cwd = path
 
+    ##########################################################
+    #                SHELL COMMAND EXECUTION                 #
+    ##########################################################
+    # command-executing methods. Three levels of simplicity vs control,
+    # analogous to:
+    #   self.check_output()   -->  subprocess.check_output()
+    #   self.run()            -->  subprocess.run()
+    #   self.spawn_process()  -->  subprocess.Popen()
+    def check_output(
+            self,
+            command: OneOrMore[str],
+            options: NoneOrMore[str] = None,
+            stderr: bool = False
+    ) -> Union[str, Tuple]:
+        # ADD DOCSTRING -- most basic way to run command.
+        finished_proc = self.run(command=command, options=options, allow_error=False)
+        if stderr:
+            return finished_proc.stdout.final, finished_proc.stderr.final
+        else:
+            return finished_proc.stdout.final
 
+    def run(
+            self,
+            command: OneOrMore[str],
+            options: NoneOrMore[str] = None,
+            working_dir: Optional[PathLike] = None,
+            tmp_env: Optional[Dict[str, str]] = None,
+            allow_error: bool = False
+    ) -> RemoteProcess:
+        # ADD DOCSTRING -- simplified interface for running
+        #  commands. For finer control, use spawn_process. Will always
+        #  wait for process to finish & return completed process
+        return self.spawn_process(command=command,
+                                  options=options,
+                                  working_dir=working_dir,
+                                  tmp_env=tmp_env,
+                                  allow_error=allow_error,
+                                  wait=True)
 
+    def spawn_process(
+            self,
+            command: OneOrMore[str],
+            options: NoneOrMore[str] = None,
+            working_dir: Optional[PathLike] = None,
+            tmp_env: Optional[Dict[str, str]] = None,
+            stdout: NoneOrMore[MswStdoutDest] = None,
+            stderr: NoneOrMore[MswStderrDest] = None,
+            stream_encoding: Union[str, None] = 'utf-8',
+            close_streams: bool = True,
+            wait: bool = False,
+            allow_error: bool = False,
+            use_pty: bool = False,
+            callback: Optional[Callable] = None,
+            callback_args: Optional[Tuple] = None,
+            callback_kwargs: Optional[Dict] = None
+    ) -> RemoteProcess:
+        # ADD DOCSTRING -- note that '-c' option is appended automatically
+        # might just be base function for self.exec_command(block=True/False).
+        # passing list of strings is equivalent to &&-joining them
+        # if stdout/stderr are None, default to just writing to the object
 
+        # set defaults and funnel types
+        if isinstance(command, str):
+            command = [command]
+        elif isinstance(command, Sequence):
+            command = ' && '.join(command)
+
+        if options is None:
+            options = list()
+        elif isinstance(options, str):
+            options = [options]
+
+        if tmp_env is not None:
+            _tmp_env = self.environ.copy()
+            _tmp_env.update(tmp_env)
+            tmp_env = _tmp_env
+
+        # format command string
+        full_command = [self.executable]
+        for opt in options:
+            full_command.extend(opt.split())
+
+        full_command.append('-c')
+        full_command.append(command)
+
+        # create RemoteProcess instance
+        proc = RemoteProcess(command=command,
+                             ssh_shell=self.shell,
+                             working_dir=working_dir,
+                             env_updates=tmp_env,
+                             stdout=stdout,
+                             stderr=stderr,
+                             stream_encoding=stream_encoding,
+                             close_streams=close_streams,
+                             wait=wait,
+                             allow_error=allow_error,
+                             use_pty=use_pty,
+                             callback=callback,
+                             callback_args=callback_args,
+                             callback_kwargs=callback_kwargs)
+        return proc.run()
 
 
 ################################################################################
@@ -247,308 +405,3 @@ class OldShell(ShellEnvironMixin):
     #
     #     self.disconnect()
     #     self.connect()
-
-    ##########################################################
-    #          FILE SYSTEM NAVIGATION & INTERACTION          #
-    ##########################################################
-    # TODO: implement os.walk?
-
-    def cat(self, path: PathLike) -> str:
-        # ADD DOCSTRING
-        path = str(self.resolve_path(path))
-        # TODO: check if use_pty=True or False shows full output for
-        #  content longer than $LINES lines; if neither, change this to
-        #  read the actual text contents
-        return self.shell.check_output(['cat', path])
-
-    def chdir(self, path: PathLike) -> None:
-        # ADD DOCSTRING
-        path = self.resolve_path(path)
-        # functionally equivalent to setting self.cwd property with checks
-        self.cwd = path
-
-    def chmod(self, path: PathLike, mode: int) -> None:
-        raise NotImplementedError
-
-    def chown(self, path: PathLike, uid: int, gid: int) -> None:
-        raise NotImplementedError
-
-    def exists(self, path: PathLike) -> bool:
-        # ADD DOCSTRING
-        path = self.resolve_path(path)
-        return self.shell.exists(remote_path=path)
-
-    def is_dir(self, path: PathLike) -> bool:
-        # ADD DOCSTRING
-        try:
-            return self.shell.is_dir(remote_path=path)
-        except FileNotFoundError:
-            # spurplus.SshShell.is_dir raises FileNotFoundError if path
-            # doesn't exist; pathlib.Path.is_dir returns False. pathlib
-            # behavior is more logical
-            return False
-
-    def is_file(self, path: PathLike) -> bool:
-        # ADD DOCSTRING
-        # no straightforward way to do this between spurplus/spur/paramiko,
-        # so going for the roundabout way
-        path = self.resolve_path(path)
-        output = self.shell.run([self.executable, '-c', f'test -f {path}'],
-                                allow_error=True)
-        return not bool(output.return_code)
-
-    def is_subdir_of(self, subdir: PathLike, parent: PathLike) -> bool:
-        # ADD DOCSTRING
-        subdir = PurePosixPath(self.resolve_path(subdir))
-        parent = PurePosixPath(self.resolve_path(parent))
-        try:
-            subdir.relative_to(parent)
-            return True
-        except ValueError:
-            return False
-
-    def listdir(self, path: PathLike = '.') -> None:
-        # ADD DOCSTRING
-        path = str(self.resolve_path(path))
-        self.shell.as_sftp().listdir(path)
-
-    def mkdir(
-            self,
-            path: PathLike,
-            mode: int = 16877,
-            parents: bool = False,
-            exist_ok: bool = False
-    ) -> None:
-        # ADD DOCSTRING
-        # mode 16877, octal equiv: '0o40755' (user has full rights, all
-        # others can read/traverse)
-        self.shell.mkdir(remote_path=path,
-                         mode=mode,
-                         parents=parents,
-                         exist_ok=exist_ok)
-
-    def remove(self, path: PathLike, recursive: bool = False) -> None:
-        path = self.resolve_path(path)
-        self.shell.remove(remote_path=path, recursive=recursive)
-
-    def resolve_path(self, path: PathLike) -> PathLike:
-        # ADD DOCSTRING
-        # os.path.expanduser
-        orig_type = type(path)
-        path = str(path)
-        if path == '~' or path.startswith('~/'):
-            path = path.replace('~', '$HOME', 1)
-
-        # make path relative to cwd
-        if not path.startswith(('/', '$')):
-            path = os.path.join(self.cwd, path)
-
-        # os.path.expandvars
-        if '$' in path:
-            parts = path.split('/')
-            for ix, p in enumerate(parts):
-                if p.startswith('$'):
-                    parts[ix] = self.getenv(p.replace('$', '', 1), default=p)
-
-            # not using os.path.join actually makes dealing with scenario
-            # where ~ or env var ($SOMEVAR/etc/etc) comes first easier
-            path = '/'.join(*parts)
-            path = path.replace('//', '/')
-
-        return orig_type(self.shell.as_sftp()._sftp.normalize(path))
-
-    def stat(self, path: PathLike = None) -> SFTPAttributes:
-        path = self.resolve_path(path)
-        return self.shell.stat(remote_path=path)
-
-    def touch(self, path: PathLike, mode: int = 33188, exist_ok: bool = True):
-        # ADD DOCSTRING.
-        #  Functions like Pathlib.touch(). if file exists and exist_ok
-        #  is True, calls equiv to os.utime to update atime and mtime
-        #  like touch does.  Can't be used to change mode on existing
-        #  file; use chmod instead
-        # mode 33188, octal equiv: '0o100644'
-        path = str(self.resolve_path(path))
-        if self.exists(path):
-            if exist_ok:
-                self.shell.as_sftp()._sftp.utime(path, times=None)
-            else:
-                raise FileExistsError(f"")
-        else:
-            self.write(path, content='', encoding='utf-8')
-            curr_mode = self.shell.stat(path).st_mode
-            if curr_mode != mode:
-                try:
-                    self.chmod(path, mode)
-                except NotImplementedError:
-                    warnings.warn("chmod/chown functionality not implemented. "
-                                  f"File created with permissions: {curr_mode}")
-
-    ##########################################################
-    #                 FILE TRANSFER & ACCESS                 #
-    ##########################################################
-    def get(
-            self,
-            remote_path: PathLike,
-            local_path: PathLike,
-            create_directories: bool = True,
-            consistent: bool = True
-    ) -> None:
-        # ADD DOCSTRING
-        remote_path = self.resolve_path(remote_path)
-        # I don't understand why they STILL haven't implemented expandvars for pathlib...
-        local_path = Path(os.path.expandvars(Path(local_path).expanduser())).resolve()
-        self.shell.get(remote_path=remote_path,
-                       local_path=local_path,
-                       create_directories=create_directories,
-                       consistent=consistent)
-
-    def put(
-            self,
-            local_path: PathLike = None,
-            remote_path: PathLike = None,
-            create_directories: bool = True,
-            consistent: bool = True
-    ) -> None:
-        # ADD DOCSTRING
-        local_path = Path(os.path.expandvars(Path(local_path).expanduser())).resolve()
-        remote_path = self.resolve_path(remote_path)
-        self.shell.put(local_path=local_path,
-                       remote_path=remote_path,
-                       create_directories=create_directories,
-                       consistent=consistent)
-    #
-    # def read(self, path: PathLike, encoding: Union[str, None] = 'utf-8') -> Union[str, bytes]:
-    #     # ADD DOCSTRING
-    #     # TODO: fix typing to use @overload
-    #     path = self.resolve_path(path)
-    #     if encoding is None:
-    #         return self.shell.read_bytes(remote_path=path)
-    #     else:
-    #         return self.shell.read_text(remote_path=path, encoding=encoding)
-    #
-    # def write(
-    #         self,
-    #         path: PathLike,
-    #         content: Union[str, bytes],
-    #         encoding: Union[str, None] = 'utf-8',
-    #         create_directories: bool = True,
-    #         consistent: bool = True
-    # ) -> None:
-    #     # ADD DOCSTRING
-    #     path = self.resolve_path(path)
-    #     if encoding is None:
-    #         self.shell.write_bytes(remote_path=path,
-    #                                data=content,
-    #                                create_directories=create_directories,
-    #                                consistent=consistent)
-    #     else:
-    #         self.shell.write_text(remote_path=path,
-    #                               text=content,
-    #                               encoding=encoding,
-    #                               create_directories=create_directories,
-    #                               consistent=consistent)
-
-
-    ##########################################################
-    #                SHELL COMMAND EXECUTION                 #
-    ##########################################################
-    # command-executing methods. Three levels of simplicity vs control,
-    # sort of analogous to:
-    #   self.check_output()     --> subprocess.check_output()
-    #   self.run()              --> subprocess.run()
-    #   self.spawn_process()    --> subprocess.Popen()
-    def check_output(
-            self,
-            command: OneOrMore[str],
-            options: NoneOrMore[str] = None,
-            stderr: bool = False
-    ) -> Union[str, Tuple]:
-        # ADD DOCSTRING -- most basic way to run command.
-        finished_proc = self.run(command=command, options=options, allow_error=False)
-        if stderr:
-            return finished_proc.stdout.final, finished_proc.stderr.final
-        else:
-            return finished_proc.stdout.final
-
-    def run(
-            self,
-            command: OneOrMore[str],
-            options: NoneOrMore[str] = None,
-            working_dir: Optional[PathLike] = None,
-            tmp_env: Optional[Dict[str, str]] = None,
-            allow_error: bool = False
-    ) -> RemoteProcess:
-        # ADD DOCSTRING -- simplified interface for running
-        #  commands. For finer control, use spawn_process. Will always
-        #  wait for process to finish & return completed process
-        return self.spawn_process(command=command,
-                                  options=options,
-                                  working_dir=working_dir,
-                                  tmp_env=tmp_env,
-                                  allow_error=allow_error,
-                                  wait=True)
-
-    def spawn_process(
-            self,
-            command: OneOrMore[str],
-            options: NoneOrMore[str] = None,
-            working_dir: Optional[PathLike] = None,
-            tmp_env: Optional[Dict[str, str]] = None,
-            stdout: NoneOrMore[MswStdoutDest] = None,
-            stderr: NoneOrMore[MswStderrDest] = None,
-            stream_encoding: Union[str, None] = 'utf-8',
-            close_streams: bool = True,
-            wait: bool = False,
-            allow_error: bool = False,
-            use_pty: bool = False,
-            callback: Optional[Callable] = None,
-            callback_args: Optional[Tuple] = None,
-            callback_kwargs: Optional[Dict] = None
-    ) -> RemoteProcess:
-        # ADD DOCSTRING
-        # TODO: note in docstring that '-c' option is added at end automatically
-        # might just be base function for self.exec_command(block=True/False).
-        # passing list of strings is equivalent to &&-joining them
-        # if stdout/stderr are None, default to just writing to the object
-
-        # set defaults and funnel types
-        if isinstance(command, str):
-            command = [command]
-        elif isinstance(command, Sequence):
-            command = ' && '.join(command)
-
-        if options is None:
-            options = []
-        elif isinstance(options, str):
-            options = [options]
-
-        if tmp_env is not None:
-            _tmp_env = self.environ.copy()
-            _tmp_env.update(tmp_env)
-            tmp_env = _tmp_env
-
-        # format command string
-        full_command = [self.executable]
-        for opt in options:
-            full_command.extend(opt.split())
-
-        full_command.append('-c')
-        full_command.append(command)
-
-        # create RemoteProcess instance
-        proc = RemoteProcess(command=command,
-                             ssh_shell=self.shell,
-                             working_dir=working_dir,
-                             env_updates=tmp_env,
-                             stdout=stdout,
-                             stderr=stderr,
-                             stream_encoding=stream_encoding,
-                             close_streams=close_streams,
-                             wait=wait,
-                             allow_error=allow_error,
-                             use_pty=use_pty,
-                             callback=callback,
-                             callback_args=callback_args,
-                             callback_kwargs=callback_kwargs)
-        return proc.run()

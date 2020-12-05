@@ -14,12 +14,9 @@ from clustertools.shells.ssh_shell import SshShellMixin
 from clustertools.shared.typing import PathLike
 
 
-# noinspection PyAttributeOutsideInit
+# noinspection PyAttributeOutsideInit,PyUnresolvedReferences
 class LocalShellMixin:
     # ADD DOCSTRING
-    # TODO: implement self.check_output, which spur.LocalShell doesn't
-    #  for some reason (should be just subprocess.check_output)
-
     def __getattr__(self, item):
         if hasattr(SshShellMixin, item):
             message = f"'{item}' is not supported for local shells"
@@ -68,7 +65,7 @@ class LocalShellMixin:
         # TODO: checking /etc/shells MIGHT be less efficient than
         #  creating/running a RemoteProcess (which has to be done so
         #  full $PATH is set) but would enforce only allowing actual
-        #  shells to be set, rather than any existing/executable file
+        #  shells, rather than any existing/executable file
         if new_exe is None:
             # internal shortcut to skip validation when
             # defaulting/resetting executable to $SHELL
@@ -138,9 +135,6 @@ class LocalShellMixin:
         # ADD DOCSTRING
         return self.resolve_path(Path(path), strict=False).is_file()
 
-    # def is_subdir_of(self, subdir: PathLike, parent: PathLike) -> bool:
-    #     pass
-
     def listdir(self, path: PathLike = '.') -> List[str]:
         # ADD DOCSTRING
         return os.listdir(self.resolve_path(path, strict=False))
@@ -179,24 +173,7 @@ class LocalShellMixin:
         else:
             path.unlink(missing_ok=False)
 
-    def resolve_path(self, path: PathLike, strict: bool = False) -> PathLike:
-        # ADD DOCSTRING
-        # TODO: support windows environment variable form
-        # note that this won't account for an environment variable that
-        # references another environment variable, but neither does
-        # os.path.expandvars
-        path_type = type(path)
-        path = str(path)
-        # os.path.expandvars, but using self.environ
-        if '$' in path:
-            parts = path.split(os.path.sep)
-            for ix, p in enumerate(parts):
-                if p.startswith('$'):
-                    parts[ix] = self.environ.get(p[1:].strip('{}'), default=p)
-            path = os.path.sep.join(parts)
-            # fix any joining inconsistencies
-            path = path.replace('//', '/')
-        return path_type(Path(path).expanduser().resolve(strict=strict))
+    self.resolve_path = self._resolve_path_remote
 
     def stat(self, path: PathLike = None) -> os.stat_result:
         # ADD DOCSTRING
@@ -223,9 +200,3 @@ class LocalShellMixin:
         path = self.resolve_path(Path(path), strict=False)
         path.write_text(data=data, encoding=encoding, errors=None)
         return None
-
-    def check_output(self, command, encoding='utf-8') -> str:
-        # ADD DOCSTRING
-        # TODO: write me
-        pass
-
