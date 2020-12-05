@@ -30,7 +30,7 @@ job_names = list()
 # The code below will create a bash script for each combination of paramaters
 # (named for the items in job_names) and place it in the scripts/ directory.
 # Each bash script is submitted to the job queue to run on a compute node with
-# the options specified in config.py.  These bash scripts, in turn, call your
+# the options specified in global_config.py.  These bash scripts, in turn, call your
 # cruncher.py script with the arguments specified in job_commands.
 
 
