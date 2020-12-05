@@ -417,37 +417,37 @@ class OldShell(ShellEnvironMixin):
                        remote_path=remote_path,
                        create_directories=create_directories,
                        consistent=consistent)
-
-    def read(self, path: PathLike, encoding: Union[str, None] = 'utf-8') -> Union[str, bytes]:
-        # ADD DOCSTRING
-        # TODO: fix typing to use @overload
-        path = self.resolve_path(path)
-        if encoding is None:
-            return self.shell.read_bytes(remote_path=path)
-        else:
-            return self.shell.read_text(remote_path=path, encoding=encoding)
-
-    def write(
-            self,
-            path: PathLike,
-            content: Union[str, bytes],
-            encoding: Union[str, None] = 'utf-8',
-            create_directories: bool = True,
-            consistent: bool = True
-    ) -> None:
-        # ADD DOCSTRING
-        path = self.resolve_path(path)
-        if encoding is None:
-            self.shell.write_bytes(remote_path=path,
-                                   data=content,
-                                   create_directories=create_directories,
-                                   consistent=consistent)
-        else:
-            self.shell.write_text(remote_path=path,
-                                  text=content,
-                                  encoding=encoding,
-                                  create_directories=create_directories,
-                                  consistent=consistent)
+    #
+    # def read(self, path: PathLike, encoding: Union[str, None] = 'utf-8') -> Union[str, bytes]:
+    #     # ADD DOCSTRING
+    #     # TODO: fix typing to use @overload
+    #     path = self.resolve_path(path)
+    #     if encoding is None:
+    #         return self.shell.read_bytes(remote_path=path)
+    #     else:
+    #         return self.shell.read_text(remote_path=path, encoding=encoding)
+    #
+    # def write(
+    #         self,
+    #         path: PathLike,
+    #         content: Union[str, bytes],
+    #         encoding: Union[str, None] = 'utf-8',
+    #         create_directories: bool = True,
+    #         consistent: bool = True
+    # ) -> None:
+    #     # ADD DOCSTRING
+    #     path = self.resolve_path(path)
+    #     if encoding is None:
+    #         self.shell.write_bytes(remote_path=path,
+    #                                data=content,
+    #                                create_directories=create_directories,
+    #                                consistent=consistent)
+    #     else:
+    #         self.shell.write_text(remote_path=path,
+    #                               text=content,
+    #                               encoding=encoding,
+    #                               create_directories=create_directories,
+    #                               consistent=consistent)
 
 
     ##########################################################

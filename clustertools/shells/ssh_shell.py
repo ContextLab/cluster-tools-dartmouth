@@ -135,7 +135,7 @@ class SshShellMixin:
 
     def exists(self, path: PathLike) -> bool:
         # ADD DOCSTRING
-        path = self.resolve_path(path)
+        path = self.resolve_path(path, strict=False)
         return self.shell.exists(remote_path=path)
 
     def is_dir(self, path: PathLike) -> bool:
@@ -152,7 +152,7 @@ class SshShellMixin:
         # ADD DOCSTRING
         # no Pythonic way to do this between spurplus/spur/paramiko,
         # so going for the roundabout bash way
-        path = self.resolve_path(path)
+        path = self.resolve_path(path, strict=False)
         output = self.shell.run([self.executable, '-c', f'test -f {path}'],
                                 allow_error=True)
         return not bool(output.return_code)
@@ -169,8 +169,8 @@ class SshShellMixin:
 
     def listdir(self, path: PathLike = '.') -> None:
         # ADD DOCSTRING
-        path = str(self.resolve_path(path))
-        self.shell.as_sftp().listdir(path)
+        path = self.resolve_path(str(path), strict=True)
+        return self.shell.as_sftp().listdir(path)
 
     def mkdir(
             self,
@@ -182,13 +182,25 @@ class SshShellMixin:
         # ADD DOCSTRING
         # mode 16877, octal equiv: '0o40755' (user has full rights, all
         # others can read/traverse)
+        path = self.resolve_path(path, strict=False)
         self.shell.mkdir(remote_path=path,
                          mode=mode,
                          parents=parents,
                          exist_ok=exist_ok)
 
+    def read_bytes(self, path: PathLike) -> bytes:
+        # ADD DOCSTRING
+        path = self.resolve_path(path, strict=True)
+        return self.shell.read_bytes(remote_path=path)
+
+    def read_text(self, path: PathLike, encoding: str = 'utf-8') -> str:
+        # ADD DOCSTRING
+        path = self.resolve_path(path, strict=True)
+        return self.shell.read_text(remote_path=path, encoding=encoding)
+
     def remove(self, path: PathLike, recursive: bool = False) -> None:
-        path = self.resolve_path(path)
+        # ADD DOCSTRING
+        path = self.resolve_path(path, strict=True)
         self.shell.remove(remote_path=path, recursive=recursive)
 
     def resolve_path(self, path: PathLike, strict: bool = False) -> PathLike:
@@ -226,7 +238,7 @@ class SshShellMixin:
         return full_path
 
     def stat(self, path: PathLike = None) -> SFTPAttributes:
-        path = self.resolve_path(path)
+        path = self.resolve_path(path, strict=True)
         return self.shell.stat(remote_path=path)
 
     def touch(self, path: PathLike, mode: int = 33188, exist_ok: bool = True):
@@ -236,7 +248,7 @@ class SshShellMixin:
         #  like touch does.  Can't be used to change mode on existing
         #  file; use chmod instead
         # mode 33188, octal equiv: '0o100644'
-        path = str(self.resolve_path(path))
+        path = str(self.resolve_path(path, strict=False))
         if self.exists(path):
             if exist_ok:
                 self.shell.as_sftp()._sftp.utime(path, times=None)
@@ -251,6 +263,32 @@ class SshShellMixin:
                 except NotImplementedError:
                     warnings.warn("chmod/chown functionality not implemented. "
                                   f"File created with permissions: {curr_mode}")
+
+    def write_bytes(self, path: PathLike, data: bytes, consistent: bool = True) -> None:
+        # ADD DOCSTRING
+        path = self.resolve_path(path, strict=False)
+        return self.shell.write_bytes(remote_path=path,
+                                      data=data,
+                                      create_directories=False,
+                                      consistent=consistent)
+
+    def write_text(
+            self,
+            path: PathLike,
+            data: str,
+            encoding: str = 'utf-8',
+            consistent: bool = True
+    ) -> None:
+        # ADD DOCSTRING
+        path = self.resolve_path(path, strict=False)
+        return self.shell.write_text(remote_path=path,
+                                     text=data,
+                                     encoding=encoding,
+                                     create_directories=False,
+                                     consistent=consistent)
+
+    
+
 
 
     ##########################################################

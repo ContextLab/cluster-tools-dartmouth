@@ -125,25 +125,25 @@ class LocalShellMixin:
 
     def exists(self, path: PathLike) -> bool:
         # ADD DOCSTRING
-        return self.resolve_path(Path(path)).exists()
+        return self.resolve_path(Path(path), strict=False).exists()
 
     def is_dir(self, path: PathLike) -> bool:
         # ADD DOCSTRING
         # spurplus.SshShell.is_dir raises FileNotFoundError if path
         # doesn't exist; pathlib.Path.is_dir returns False. pathlib
         # behavior is more logical, so going with that
-        return self.resolve_path(Path(path)).is_dir()
+        return self.resolve_path(Path(path), strict=False).is_dir()
 
     def is_file(self, path: PathLike) -> bool:
         # ADD DOCSTRING
-        return self.resolve_path(Path(path)).is_file()
+        return self.resolve_path(Path(path), strict=False).is_file()
 
     # def is_subdir_of(self, subdir: PathLike, parent: PathLike) -> bool:
     #     pass
 
     def listdir(self, path: PathLike = '.') -> List[str]:
         # ADD DOCSTRING
-        return os.listdir(self.resolve_path(path))
+        return os.listdir(self.resolve_path(path, strict=False))
 
     def mkdir(
             self,
@@ -153,12 +153,22 @@ class LocalShellMixin:
             exist_ok: bool = False
     ) -> None:
         # ADD DOCSTRING
-        path = self.resolve_path(Path(path))
+        path = self.resolve_path(Path(path), strict=False)
         return path.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
+
+    def read_bytes(self, path: PathLike) -> bytes:
+        # ADD DOCSTRING
+        return self.resolve_path(Path(path), strict=True).read_bytes()
+
+    def read_text(self, path: PathLike, encoding: str = 'utf-8') -> str:
+        # ADD DOCSTRING
+        # TODO: support "errors" kwarg?
+        path = self.resolve_path(Path(path), strict=True)
+        return path.read_text(encoding=encoding, errors=None)
 
     def remove(self, path: PathLike, recursive: bool = False) -> None:
         # ADD DOCSTRING
-        path = self.resolve_path(Path(path))
+        path = self.resolve_path(Path(path), strict=True)
         if path.is_dir():
             if recursive:
                 # uses defaults for ignore_errors and onerror
@@ -167,7 +177,6 @@ class LocalShellMixin:
                 # will throw OSError if directory is not empty
                 path.rmdir()
         else:
-            # either it's a file or will raise an error here
             path.unlink(missing_ok=False)
 
     def resolve_path(self, path: PathLike, strict: bool = False) -> PathLike:
@@ -191,12 +200,29 @@ class LocalShellMixin:
 
     def stat(self, path: PathLike = None) -> os.stat_result:
         # ADD DOCSTRING
-        return self.resolve_path(Path(path)).stat()
+        return self.resolve_path(Path(path), strict=True).stat()
 
     def touch(self, path: PathLike, mode: int = 33188, exist_ok: bool = True):
         # ADD DOCSTRING
-        return self.resolve_path(Path(path)).touch(mode=mode, exist_ok=exist_ok)
+        path = self.resolve_path(Path(path), strict=False)
+        return path.touch(mode=mode, exist_ok=exist_ok)
 
+    def write_bytes(self, path: PathLike, data: bytes) -> None:
+        # ADD DOCSTRING
+        self.resolve_path(Path(path), strict=False).write_bytes(data=data)
+        return None
+
+    def write_text(
+            self,
+            path: PathLike,
+            data: str,
+            encoding: str = 'utf-8',
+    ) -> None:
+        # ADD DOCSTRING
+        # TODO: support "errors" kwarg?
+        path = self.resolve_path(Path(path), strict=False)
+        path.write_text(data=data, encoding=encoding, errors=None)
+        return None
 
     def check_output(self, command, encoding='utf-8') -> str:
         # ADD DOCSTRING
