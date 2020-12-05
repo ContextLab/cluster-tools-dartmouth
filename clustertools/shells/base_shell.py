@@ -9,10 +9,7 @@ import spur
 import spurplus
 from paramiko import SFTPAttributes
 
-from clustertools.shells import (LocalShellMixin,
-                                 PseudoEnviron,
-                                 SshShellMixin,
-                                 ShellEnvironMixin)
+from clustertools.shells import LocalShellMixin, SshShellMixin
 from clustertools.shared.remote_process import RemoteProcess
 from clustertools.shared.typing import (MswStderrDest,
                                         MswStdoutDest,
@@ -85,10 +82,15 @@ class BaseShell:
         # ADD DOCSTRING
         del self.environ[_to_str(key)]
 
+    ##########################################################
+    #                 FILE SYSTEM INTERFACE                  #
+    ##########################################################
 
-
-
-
+    def chdir(self, path: PathLike) -> None:
+        # ADD DOCSTRING
+        path = self.resolve_path(path)
+        # functionally equivalent to setting self.cwd property with checks
+        self.cwd = path
 
 
 

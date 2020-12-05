@@ -2,14 +2,14 @@ import getpass
 import locale
 import os
 import warnings
-from pathlib import PurePosixPath
+from pathlib import PurePath, PurePosixPath
 from typing import Callable, Optional, Union, Tuple, Dict
 
 import spurplus
 from paramiko import SFTPAttributes
 from spur.results import RunProcessError
 
-from clustertools.mixins import PseudoEnviron
+from clustertools.shells.environ import PseudoEnviron
 from clustertools.shared.exceptions import SSHConnectionError
 from clustertools.shared.remote_process import RemoteProcess
 from clustertools.shared.typing import (MswStderrDest,
@@ -125,7 +125,132 @@ class SshShellMixin:
     ##########################################################
     #                 FILE SYSTEM INTERFACE                  #
     ##########################################################
+    # TODO: implement os.walk?
 
+    def chmod(self, path: PathLike, mode: int) -> None:
+        raise NotImplementedError
+
+    def chown(self, path: PathLike, uid: int, gid: int) -> None:
+        raise NotImplementedError
+
+    def exists(self, path: PathLike) -> bool:
+        # ADD DOCSTRING
+        path = self.resolve_path(path)
+        return self.shell.exists(remote_path=path)
+
+    def is_dir(self, path: PathLike) -> bool:
+        # ADD DOCSTRING
+        try:
+            return self.shell.is_dir(remote_path=path)
+        except FileNotFoundError:
+            # spurplus.SshShell.is_dir raises FileNotFoundError if path
+            # doesn't exist; pathlib.Path.is_dir returns False. pathlib
+            # behavior is more logical, so going with that
+            return False
+
+    def is_file(self, path: PathLike) -> bool:
+        # ADD DOCSTRING
+        # no Pythonic way to do this between spurplus/spur/paramiko,
+        # so going for the roundabout bash way
+        path = self.resolve_path(path)
+        output = self.shell.run([self.executable, '-c', f'test -f {path}'],
+                                allow_error=True)
+        return not bool(output.return_code)
+
+    # def is_subdir_of(self, subdir: PathLike, parent: PathLike) -> bool:
+    #     # ADD DOCSTRING
+    #     subdir = PurePosixPath(self.resolve_path(subdir))
+    #     parent = PurePosixPath(self.resolve_path(parent))
+    #     try:
+    #         subdir.relative_to(parent)
+    #         return True
+    #     except ValueError:
+    #         return False
+
+    def listdir(self, path: PathLike = '.') -> None:
+        # ADD DOCSTRING
+        path = str(self.resolve_path(path))
+        self.shell.as_sftp().listdir(path)
+
+    def mkdir(
+            self,
+            path: PathLike,
+            mode: int = 16877,
+            parents: bool = False,
+            exist_ok: bool = False
+    ) -> None:
+        # ADD DOCSTRING
+        # mode 16877, octal equiv: '0o40755' (user has full rights, all
+        # others can read/traverse)
+        self.shell.mkdir(remote_path=path,
+                         mode=mode,
+                         parents=parents,
+                         exist_ok=exist_ok)
+
+    def remove(self, path: PathLike, recursive: bool = False) -> None:
+        path = self.resolve_path(path)
+        self.shell.remove(remote_path=path, recursive=recursive)
+
+    def resolve_path(self, path: PathLike, strict: bool = False) -> PathLike:
+        # ADD DOCSTRING
+        # note that this won't account for an environment variable that
+        # references another environment variable, but neither does
+        # os.path.expandvars
+        path_type = type(path)
+        path = str(path)
+        # os.path.expandvars, but using self.environ
+        if '$' in path:
+            parts = path.split('/')
+            for ix, p in enumerate(parts):
+                if p.startswith('$'):
+                    parts[ix] = self.environ.get(p[1:].strip('{}'), default=p)
+            path = '/'.join(parts)
+        # os.path.expanduser (could implement this for other users using
+        # pwd module, but probably not worthwhile)
+        path = path.replace(f'~{self.username}', self.environ.get('HOME'), 1)
+        path = path.replace('~', self.environ.get('HOME'), 1)
+        # fix any joining inconsistencies
+        path = path.replace('//', '/')
+        # os.path.realpath (os.path.abspath + resolving symlinks)
+        # may be better to use self.shell.as_sftp()._sftp.normalize(path),
+        # but ReconnectingSFTP's _sftp attr is only set after calling
+        # certain other methods that aren't guaranteed to have been used
+        # before this
+        if not path.startswith('/'):
+            path = os.path.join(self.cwd, path)
+        full_path = os.path.normpath(path)
+        if strict and not self.exists(full_path):
+            # format follows exception raised for pathlib.Path.resolve(strict=True)
+            raise FileNotFoundError("[Errno 2] No such file or directory: "
+                                    f"'{full_path}'")
+        return full_path
+
+    def stat(self, path: PathLike = None) -> SFTPAttributes:
+        path = self.resolve_path(path)
+        return self.shell.stat(remote_path=path)
+
+    def touch(self, path: PathLike, mode: int = 33188, exist_ok: bool = True):
+        # ADD DOCSTRING.
+        #  Functions like Pathlib.touch(). if file exists and exist_ok
+        #  is True, calls equiv to os.utime to update atime and mtime
+        #  like touch does.  Can't be used to change mode on existing
+        #  file; use chmod instead
+        # mode 33188, octal equiv: '0o100644'
+        path = str(self.resolve_path(path))
+        if self.exists(path):
+            if exist_ok:
+                self.shell.as_sftp()._sftp.utime(path, times=None)
+            else:
+                raise FileExistsError(f"")
+        else:
+            self.write(path, content='', encoding='utf-8')
+            curr_mode = self.shell.stat(path).st_mode
+            if curr_mode != mode:
+                try:
+                    self.chmod(path, mode)
+                except NotImplementedError:
+                    warnings.warn("chmod/chown functionality not implemented. "
+                                  f"File created with permissions: {curr_mode}")
 
 
     ##########################################################
@@ -233,138 +358,6 @@ class SshShellMixin:
         self.disconnect()
         self.connect()
 
-    ##########################################################
-    #          FILE SYSTEM NAVIGATION & INTERACTION          #
-    ##########################################################
-    # TODO: implement os.walk?
-
-    def cat(self, path: PathLike) -> str:
-        # ADD DOCSTRING
-        path = str(self.resolve_path(path))
-        return self.shell.check_output(['cat', path])
-
-    def chdir(self, path: PathLike) -> None:
-        # ADD DOCSTRING
-        path = self.resolve_path(path)
-        # functionally equivalent to setting self.cwd property with checks
-        self.cwd = path
-
-    def chmod(self, path: PathLike, mode: int) -> None:
-        raise NotImplementedError
-
-    def chown(self, path: PathLike, uid: int, gid: int) -> None:
-        raise NotImplementedError
-
-    def exists(self, path: PathLike) -> bool:
-        # ADD DOCSTRING
-        path = self.resolve_path(path)
-        return self.shell.exists(remote_path=path)
-
-    def is_dir(self, path: PathLike) -> bool:
-        # ADD DOCSTRING
-        try:
-            return self.shell.is_dir(remote_path=path)
-        except FileNotFoundError:
-            # spurplus.SshShell.is_dir raises FileNotFoundError if path
-            # doesn't exist; pathlib.Path.is_dir returns False. pathlib
-            # behavior is more logical
-            return False
-
-    def is_file(self, path: PathLike) -> bool:
-        # ADD DOCSTRING
-        # no Pythonic way to do this between spurplus/spur/paramiko,
-        # so going for the roundabout bash way
-        path = self.resolve_path(path)
-        output = self.shell.run([self.executable, '-c', f'test -f {path}'],
-                                allow_error=True)
-        return not bool(output.return_code)
-
-    def is_subdir_of(self, subdir: PathLike, parent: PathLike) -> bool:
-        # ADD DOCSTRING
-        subdir = PurePosixPath(self.resolve_path(subdir))
-        parent = PurePosixPath(self.resolve_path(parent))
-        try:
-            subdir.relative_to(parent)
-            return True
-        except ValueError:
-            return False
-
-    def listdir(self, path: PathLike = '.') -> None:
-        # ADD DOCSTRING
-        path = str(self.resolve_path(path))
-        self.shell.as_sftp().listdir(path)
-
-    def mkdir(
-            self,
-            path: PathLike,
-            mode: int = 16877,
-            parents: bool = False,
-            exist_ok: bool = False
-    ) -> None:
-        # ADD DOCSTRING
-        # mode 16877, octal equiv: '0o40755' (user has full rights, all
-        # others can read/traverse)
-        self.shell.mkdir(remote_path=path,
-                         mode=mode,
-                         parents=parents,
-                         exist_ok=exist_ok)
-
-    def remove(self, path: PathLike, recursive: bool = False) -> None:
-        path = self.resolve_path(path)
-        self.shell.remove(remote_path=path, recursive=recursive)
-
-    def resolve_path(self, path: PathLike) -> PathLike:
-        # ADD DOCSTRING
-        # os.path.expanduser
-        orig_type = type(path)
-        path = str(path)
-        if path == '~' or path.startswith('~/'):
-            path = path.replace('~', '$HOME', 1)
-
-        # make path relative to cwd
-        if not path.startswith(('/', '$')):
-            path = os.path.join(self.cwd, path)
-
-        # os.path.expandvars
-        if '$' in path:
-            parts = path.split('/')
-            for ix, p in enumerate(parts):
-                if p.startswith('$'):
-                    parts[ix] = self.getenv(p.replace('$', '', 1), default=p)
-
-            # not using os.path.join actually makes dealing with scenario
-            # where ~ or env var ($SOMEVAR/etc/etc) comes first easier
-            path = '/'.join(*parts)
-            path = path.replace('//', '/')
-
-        return orig_type(self.shell.as_sftp()._sftp.normalize(path))
-
-    def stat(self, path: PathLike = None) -> SFTPAttributes:
-        path = self.resolve_path(path)
-        return self.shell.stat(remote_path=path)
-
-    def touch(self, path: PathLike, mode: int = 33188, exist_ok: bool = True):
-        # ADD DOCSTRING.
-        #  Functions like Pathlib.touch(). if file exists and exist_ok
-        #  is True, calls equiv to os.utime to update atime and mtime
-        #  like touch does.  Can't be used to change mode on existing
-        #  file; use chmod instead
-        # mode 33188, octal equiv: '0o100644'
-        path = str(self.resolve_path(path))
-        if self.exists(path):
-            if exist_ok:
-                self.shell.as_sftp()._sftp.utime(path, times=None)
-            else:
-                raise FileExistsError(f"")
-        else:
-            self.write(path, content='', encoding='utf-8')
-            curr_mode = self.shell.stat(path).st_mode
-            if curr_mode != mode:
-                try:
-                    self.chmod(path, mode)
-                except NotImplementedError:
-                    warnings.warn("chmod/chown functionality not implemented. "
-                                  f"File created with permissions: {curr_mode}")
 
     ##########################################################
     #                 FILE TRANSFER & ACCESS                 #

@@ -1,14 +1,16 @@
 import getpass
 import os
+import shutil
 import socket
+from os.path import expanduser, realpath
 from pathlib import Path
 from subprocess import CalledProcessError
-from typing import NoReturn, Optional
+from typing import List, NoReturn, Optional, Union
 
 import spur
 
-from clustertools.mixins import PseudoEnviron, SshShellMixin
-from clustertools.shared.helpers import cleanpath
+from clustertools.shells.environ import PseudoEnviron
+from clustertools.shells.ssh_shell import SshShellMixin
 from clustertools.shared.typing import PathLike
 
 
@@ -42,7 +44,7 @@ class LocalShellMixin:
                 raise AttributeError("'cwd' must be a 'str' or "
                                      "'pathlib.Path'-like object") from e
         else:
-            new_cwd = cleanpath(new_cwd)
+            new_cwd = self.resolve_path(new_cwd)
             if new_cwd.is_dir():
                 self._cwd = new_cwd
             elif new_cwd.is_file():
@@ -108,6 +110,93 @@ class LocalShellMixin:
     ##########################################################
     #                 FILE SYSTEM INTERFACE                  #
     ##########################################################
+    def chmod(self, path: PathLike, mode: int) -> None:
+        # ADD DOCSTRING
+        return Path(path).chmod(mode=mode)
+
+    def chown(
+            self,
+            path: PathLike,
+            user: Union[str, int, None] = None,
+            group: Union[str, int, None] = None
+    ) -> None:
+        # ADD DOCSTRING
+        return shutil.chown(path=str(path), user=user, group=group)
+
+    def exists(self, path: PathLike) -> bool:
+        # ADD DOCSTRING
+        return self.resolve_path(Path(path)).exists()
+
+    def is_dir(self, path: PathLike) -> bool:
+        # ADD DOCSTRING
+        # spurplus.SshShell.is_dir raises FileNotFoundError if path
+        # doesn't exist; pathlib.Path.is_dir returns False. pathlib
+        # behavior is more logical, so going with that
+        return self.resolve_path(Path(path)).is_dir()
+
+    def is_file(self, path: PathLike) -> bool:
+        # ADD DOCSTRING
+        return self.resolve_path(Path(path)).is_file()
+
+    # def is_subdir_of(self, subdir: PathLike, parent: PathLike) -> bool:
+    #     pass
+
+    def listdir(self, path: PathLike = '.') -> List[str]:
+        # ADD DOCSTRING
+        return os.listdir(self.resolve_path(path))
+
+    def mkdir(
+            self,
+            path: PathLike,
+            mode: int = 16877,
+            parents: bool = False,
+            exist_ok: bool = False
+    ) -> None:
+        # ADD DOCSTRING
+        path = self.resolve_path(Path(path))
+        return path.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
+
+    def remove(self, path: PathLike, recursive: bool = False) -> None:
+        # ADD DOCSTRING
+        path = self.resolve_path(Path(path))
+        if path.is_dir():
+            if recursive:
+                # uses defaults for ignore_errors and onerror
+                return shutil.rmtree(path=path, ignore_errors=False, onerror=None)
+            else:
+                # will throw OSError if directory is not empty
+                path.rmdir()
+        else:
+            # either it's a file or will raise an error here
+            path.unlink(missing_ok=False)
+
+    def resolve_path(self, path: PathLike, strict: bool = False) -> PathLike:
+        # ADD DOCSTRING
+        # TODO: support windows environment variable form
+        # note that this won't account for an environment variable that
+        # references another environment variable, but neither does
+        # os.path.expandvars
+        path_type = type(path)
+        path = str(path)
+        # os.path.expandvars, but using self.environ
+        if '$' in path:
+            parts = path.split(os.path.sep)
+            for ix, p in enumerate(parts):
+                if p.startswith('$'):
+                    parts[ix] = self.environ.get(p[1:].strip('{}'), default=p)
+            path = os.path.sep.join(parts)
+            # fix any joining inconsistencies
+            path = path.replace('//', '/')
+        return path_type(Path(path).expanduser().resolve(strict=strict))
+
+    def stat(self, path: PathLike = None) -> os.stat_result:
+        # ADD DOCSTRING
+        return self.resolve_path(Path(path)).stat()
+
+    def touch(self, path: PathLike, mode: int = 33188, exist_ok: bool = True):
+        # ADD DOCSTRING
+        return self.resolve_path(Path(path)).touch(mode=mode, exist_ok=exist_ok)
+
 
     def check_output(self, command, encoding='utf-8') -> str:
         # ADD DOCSTRING
