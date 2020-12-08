@@ -1,7 +1,7 @@
 ########################################
 #       DO NOT MODIFY THIS FILE        #
 ########################################
-# This file exists to make various options from config.ini available to
+# This file exists to make various options from project_config.ini available to
 # cruncher scripts at runtime. All options should be set there rather
 # than in this file.
 
@@ -9,7 +9,7 @@ from configparser import ConfigParser
 from pathlib import Path
 
 
-config_path = Path(__file__).resolve().parent.joinpath('config.ini')
+config_path = Path(__file__).resolve().parent.joinpath('project_config.ini')
 
 job_config = ConfigParser()
 with config_path.open() as f:
