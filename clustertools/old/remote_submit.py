@@ -20,7 +20,7 @@ def remote_submit(sync_changes=False, config_path=None):
     changes to cluster scripts before submitting jobs
     :param config_path: (str, optional, default: None) path to your config file.
     If you created your config following the instructions in
-    configs/template_config.ini, you can simply leave this empty
+    file_objects/template_config.ini, you can simply leave this empty
     :return: None (other than some hopefully some results, eventually!)
     """
     if config_path is None:

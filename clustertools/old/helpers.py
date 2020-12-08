@@ -17,7 +17,7 @@ def attempt_load_config():
             # get path to project root directory
             splitroot = splitpath[: splitpath.index('cluster-tools-dartmouth') + 1]
             project_root = pathsep.join(splitroot)
-            config_dir = opj(project_root, 'configs')
+            config_dir = opj(project_root, 'file_objects')
         except ValueError as e:
             # pass exceptions onto broad outer exception for function
             raise FileNotFoundError(f"cluster-tools-dartmouth not found in path\
@@ -88,7 +88,7 @@ def md5_checksum(filepath):
 
 def parse_config(config_path):
     """
-    parses various user-specifc options from config file in configs dir
+    parses various user-specifc options from config file in file_objects dir
     """
     config_path = realpath(config_path)
     if not isfile(config_path):

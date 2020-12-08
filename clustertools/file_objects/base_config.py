@@ -1,8 +1,7 @@
-from pathlib import Path, PurePosixPath
-from typing import Optional, Union
+from typing import Optional
 
 from clustertools.cluster import Cluster
-from clustertools.mixins.synced_file import SyncedFile
+from clustertools.configs.synced_file import SyncedFile
 from clustertools.shared.typing import PathLike
 
 

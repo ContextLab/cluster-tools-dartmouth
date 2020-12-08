@@ -1,8 +1,7 @@
-from pathlib import Path
 from typing import Optional, Tuple
 
 from clustertools.configs.global_config import GlobalConfig
-from clustertools.mixins.project_handler import ProjectHandlerMixin
+from clustertools.project.project_handler import ProjectHandlerMixin
 from clustertools.shells.base_shell import BaseShell
 from clustertools.shared.exceptions import ClusterProjectError, SSHConnectionError
 from clustertools.shared.typing import NoneOrMore
