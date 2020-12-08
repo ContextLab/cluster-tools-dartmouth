@@ -1,7 +1,6 @@
 .idea/*
 *.pyc
 *.DS_Store
-configs/
 !*.gitkeep
 notebooks/
 cluster_tools.egg-info
