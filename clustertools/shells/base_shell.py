@@ -118,13 +118,14 @@ class BaseShell:
             cwd: Optional[PathLike] = None,
             strict: bool = False
     ) -> PathLike:
+        # cwd defaults to CWD if not provided
+        cwd = Path.cwd() if cwd is None else cwd
         path_type = type(path)
         # substitute environment variables
         path = self._expandvars(path=path, pathsep=os.path.sep)
         # expand tilde
         path = os.path.expanduser(path)
         # resolve relative to CWD, replace symlinks, restore to input type
-        cwd = Path.cwd() if cwd is None else cwd
         return path_type(Path(cwd, path).resolve(strict=strict))
 
     def _resolve_path_remote(
