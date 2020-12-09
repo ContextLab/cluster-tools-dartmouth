@@ -4,31 +4,24 @@ from typing import Dict, Optional, Union
 from clustertools.cluster import Cluster
 from clustertools.file_objects.attibute_config import AttributeConfig
 from clustertools.file_objects.synced_file import SyncedFile
+from clustertools.shared.environ import MonitoredEnviron
 from clustertools.shared.typing import PathLike
 
 
 class BaseConfig(SyncedFile):
     # ADD DOCSTRING
-    # @staticmethod
-    # def _getdict(val):
-    #     """
-    #     splits a newline separated list of values for a single option (where
-    #     each option takes the format `sub-option = sub-value`) into a
-    #     dictionary with the format `{sub-option: sub-value}`
-    #     """
-    #     keys_vals = map(lambda x: x.split('='), val.strip().splitlines()[1:])
-    #     return {k.strip(): v.strip() for k, v in keys_vals}
-    #
-    # @staticmethod
-    # def _getboolean(val):
-    #     # equivalent to ConfigParser.getboolean
-    #     _val = val.lower()
-    #     if _val not in ConfigParser.BOOLEAN_STATES:
-    #         raise ValueError(f'Not a boolean: {val}')
-    #     return ConfigParser.BOOLEAN_STATES[_val]
-    #
-    # TYPE_CONVERTERS = {'dict': _getdict, 'boolean': _getboolean, 'int': int, 'float': float}
-    # FIELD_TYPES = ()
+
+    @staticmethod
+    def _environ_to_str(environ: Dict[str, str]) -> str:
+        str_fmt = '\n'.join(' = '.join(item) for item in environ.items())
+        if str_fmt != '':
+            str_fmt = '\n' + str_fmt
+        return str_fmt
+
+    @staticmethod
+    def _str_to_environ(environ_str: str) -> Dict[str, str]:
+        keys_vals = map(lambda x: x.split('='), environ_str.strip().splitlines())
+        return {k.strip(): v.strip() for k, v in keys_vals}
 
     @staticmethod
     def _str_to_type(key: str, value: str) -> Union[str, bool, int, Dict[str, str]]:
@@ -39,8 +32,18 @@ class BaseConfig(SyncedFile):
         elif value.isdigit():
             return int(value)
         elif key == 'environ':
-            keys_vals = map(lambda x: x.split('='), value.strip().splitlines()[1:])
-            return {k.strip(): v.strip() for k, v in keys_vals}
+            return BaseConfig._str_to_environ(value)
+        else:
+            return value
+
+    @staticmethod
+    def _type_to_str(key: str, value: Union[str, bool, int, AttributeConfig]) -> str:
+        if value is True or value is False:
+            return str(value).lower()
+        elif isinstance(value, int):
+            return str(value)
+        elif key == 'environ':
+            return BaseConfig._environ_to_str(value)
         else:
             return value
 
@@ -54,6 +57,24 @@ class BaseConfig(SyncedFile):
         super().__init__(cluster=cluster, local_path=local_path, remote_path=remote_path)
         self._configparser = self._load_configparser()
         self._config = self._parse_config()
+
+    def _config_update_hook(self):
+        # TODO: rework how the hook is called and what args are passed
+        #  in AttributeConfig so that you have access to the key and
+        #  value inside this function and can just update one field of
+        #  self._configparser rather than the whole thing every time
+        for sec_name, section in self._configparser.items():
+            if sec_name == 'DEFAULT':
+                continue
+            elif '.' in sec_name:
+                conf_sec, conf_subsec = sec_name.split('.')
+                conf_section = self._config[conf_sec][conf_subsec]
+            else:
+                conf_sec = sec_name
+                conf_section = self._config[conf_sec]
+            for option, value in section.items():
+                section[option] = self._type_to_str(option, conf_section[option])
+        self.write_config_file()
 
     def _init_remote(self):
         if not self._cluster.is_dir(self.remote_path.parent):
@@ -82,3 +103,12 @@ class BaseConfig(SyncedFile):
             else:
                 config[sec_name] = section_dict
         return AttributeConfig(config)
+
+    def write_config_file(self):
+        # ADD DOCSTRING
+        # called from inside the AttributeConfig's update hook to write
+        # changes to the original file and sync with remote, if connected
+        with self.local_path.open('w') as f:
+            self._configparser.write(f, space_around_delimiters=True)
+        if self._cluster.connected:
+            self.upload()
