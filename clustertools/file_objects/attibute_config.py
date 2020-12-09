@@ -1,4 +1,4 @@
-from typing import Any, MutableMapping, NoReturn
+from typing import Any, MutableMapping, NoReturn, Optional
 
 
 class AttributeConfig(dict):
@@ -30,6 +30,7 @@ class AttributeConfig(dict):
     #     mixins
     def __init__(self, d: MutableMapping[Any, Any], **kwargs) -> None:
         d.update(kwargs)
+        super().__init__(d)
         for key, value in d.items():
             if hasattr(value, 'keys'):
                 value = AttributeConfig(value)
@@ -42,7 +43,7 @@ class AttributeConfig(dict):
     def __delitem__(self, name: str) -> NoReturn:
         raise TypeError("'AttributeConfig' object does not support key deletion")
 
-    def __getattr__(self, name) -> Any:
+    def __getattr__(self, name: str) -> Any:
         try:
             return dict.__getitem__(self, name)
         except KeyError:
@@ -59,7 +60,7 @@ class AttributeConfig(dict):
             else:
                 raise KeyError(f"No option named '{name}' found") from None
 
-    def __getitem__(self, name):
+    def __getitem__(self, name: str) -> Any:
         return self.__getattr__(name)
 
     def __setattr__(self, name, value):
@@ -75,11 +76,37 @@ class AttributeConfig(dict):
                     except AttributeError:
                         raise
             else:
-                raise e
+                raise TypeError("'AttributeConfig' object does not support "
+                                "key insertion") from e
         else:
             if isinstance(curr_value, AttributeConfig):
-                raise AttributeError("'AttributeConfig' subsections do not support assignment, only individual values")
+                raise AttributeError("'AttributeConfig' subsections do not "
+                                     "support assignment, only individual values")
             return dict.__setitem__(self, name, value)
 
-    def __setitem__(self, name, value):
+    def __setitem__(self, name: str, value: Any) -> None:
         return self.__setattr__(name, value)
+
+    # noinspection PyPep8Naming
+    def update(self, *E, **F) -> None:
+        # params named to match dict.update() docstring/signature
+        # expensive but safe approach, prevents all changes if one assignment from F fails
+        E = dict(E[0])
+        E.update(F)
+        pre_update = dict()
+        try:
+            for key, value in E.items():
+                # record each pre-self.update value
+                pre_update[key] = self.__getattr__(key)
+                # manually update the fields one-by-one
+                self.__setattr__(key, value)
+        except Exception:
+            # if any assignment fails, restore already-updated fields
+            # remove the problem key (if recorded) so we don't raise another AttributeError
+            pre_update.pop(key, None)
+            for key, old_value in pre_update.items():
+                self.__setattr__(key, old_value)
+            raise
+
+    def setdefault(self, key: Any, default: Optional[Any] = None) -> NoReturn:
+        raise TypeError("'AttributeConfig' object does not support key insertion")
