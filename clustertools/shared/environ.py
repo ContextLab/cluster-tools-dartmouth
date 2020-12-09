@@ -43,15 +43,15 @@ class PseudoEnviron:
     def __delitem__(self, key):
         del self._current_env[key]
 
-        # noinspection PyPep8Naming
-        def update(self, *E, **F) -> None:
-            # ADD DOCSTRING
-            # params named to match dict.update() signature
-            E = dict(E[0])
-            E.update(F)
-            if not all(isinstance(i, str) for i in sum(E.items(), ())):
-                raise TypeError("All keys and values in mapping must be 'str'")
-            self._current_env.update(**E)
+    # noinspection PyPep8Naming
+    def update(self, *E, **F) -> None:
+        # ADD DOCSTRING
+        # params named to match dict.update() signature
+        E = dict(E[0])
+        E.update(F)
+        if not all(isinstance(i, str) for i in sum(E.items(), ())):
+            raise TypeError("All keys and values in mapping must be 'str'")
+        self._current_env.update(**E)
 
     def setdefault(self, key: str, default: str = '') -> None:
         # ADD DOCSTRING
