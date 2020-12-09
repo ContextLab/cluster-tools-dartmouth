@@ -1,4 +1,4 @@
-from typing import Any, Literal, Optional
+from typing import Callable, Dict, Literal, Optional, Union, Sequence
 
 # TODO: pretty sure this is going to be a circular import...
 from clustertools.shared.typing import EnvMapping
@@ -20,6 +20,12 @@ class PseudoEnviron:
         self._current_env = initial_env.copy()
         self._current_env.update(custom_vars)
 
+    def __contains__(self, item):
+        return item in self._current_env
+
+    def __delitem__(self, key):
+        del self._current_env[key]
+
     def __getattr__(self, item):
         try:
             return getattr(self._current_env, item)
@@ -27,37 +33,34 @@ class PseudoEnviron:
             raise AttributeError("'PseudoEnviron' object has no attribute "
                                  f"'{item}'") from e
 
+    def __getitem__(self, key):
+        return self._current_env[key]
+
     def __repr__(self):
         return repr(self._current_env)
 
     # explicitly overridden methods for coercing keys/values to str
-    def __getitem__(self, key):
-        return self._current_env[key]
-
     def __setitem__(self, key, value):
         if not (isinstance(key, str) and isinstance(value, str)):
             raise TypeError("All keys and values in mapping must be 'str'")
         self._current_env[key] = value
 
-
-    def __delitem__(self, key):
-        del self._current_env[key]
-
     # noinspection PyPep8Naming
-    def update(self, *E, **F) -> None:
+    def update(self, E, **F) -> None:
         # ADD DOCSTRING
         # params named to match dict.update() signature
-        E = dict(E[0])
-        E.update(F)
+        E = dict(E, **F)
         if not all(isinstance(i, str) for i in sum(E.items(), ())):
             raise TypeError("All keys and values in mapping must be 'str'")
+        # intentionally *DOESN'T* call self.__setitem__ to avoid
+        # repeated type checks + callback runs in subclass
         self._current_env.update(**E)
 
-    def setdefault(self, key: str, default: str = '') -> None:
+    def setdefault(self, key: str, default: str = '') -> str:
         # ADD DOCSTRING
-        if not (isinstance(key, str) and isinstance(default, str)):
-            raise TypeError("All keys and values in mapping must be 'str'")
-        self._current_env.setdefault(key, default)
+        if key not in self:
+            self[key] = default
+        return self[key]
 
     def reset(
             self,
@@ -86,3 +89,37 @@ class PseudoEnviron:
     def reset_all(self) -> None:
         # ADD DOCSTRING
         self._current_env = self._initial_env
+
+
+class MonitoredEnviron(PseudoEnviron):
+    # ADD DOCSTRING
+
+    @staticmethod
+    def _default_update_hook():
+        pass
+
+    def __init__(
+            self,
+            initial_env: EnvMapping,
+            custom_vars: EnvMapping,
+            update_hook: Optional[Callable[[], None]] = None,
+    ):
+        # ADD DOCSTRING
+        super().__init__(initial_env=initial_env, custom_vars=custom_vars)
+        if update_hook is None:
+            self.update_hook = MonitoredEnviron._default_update_hook
+        else:
+            self.update_hook = update_hook
+
+    def __delitem__(self, key):
+        super().__delitem__(key=key)
+        self.update_hook()
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key=key, value=value)
+        self.update_hook()
+
+    # noinspection PyPep8Naming
+    def update(self, E, **F):
+        super().update(E, **F)
+        self.update_hook()
