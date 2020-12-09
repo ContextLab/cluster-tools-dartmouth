@@ -38,8 +38,7 @@ class SyncedFile:
                                  "read-only once set")
         path = self._cluster._resolve_path_local(Path(path), strict=False)
         self._local_path = path
-        if not self._local_path.is_file():
-            self._init_local()
+        self._init_local()
 
     @property
     def remote_path(self) -> PurePosixPath:
@@ -55,7 +54,7 @@ class SyncedFile:
             raise SSHConnectionError("Connection to remote host must be "
                                      "open to assign a remote path to a "
                                      "file mapping")
-        path = self._cluster._resolve_path_remote(PurePosixPath(path), strict=True)
+        path = self._cluster.resolve_path(PurePosixPath(path), strict=False)
         self._remote_path = path
         self._init_remote()
 

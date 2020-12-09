@@ -48,7 +48,6 @@ class AttributeConfig(dict):
             dict.__setitem__(self, key, value)
         if update_hook is None:
             update_hook = AttributeConfig._default_config_update_hook
-        print(update_hook)
         dict.__setattr__(self, '_config_update_hook', update_hook)
 
     def __delattr__(self, name: str) -> NoReturn:
@@ -85,7 +84,6 @@ class AttributeConfig(dict):
             for _value in self.values():
                 if isinstance(_value, AttributeConfig):
                     try:
-                        print(f'upper return with name = {name}, value = {value}')
                         return _value.__setattr_helper_(name, value)
                     except KeyError:
                         continue
@@ -100,20 +98,17 @@ class AttributeConfig(dict):
                                      "support assignment, only individual values")
             elif not isinstance(value, type(curr_value)):
                 raise TypeError(f"Value assigned to '{name}' must be of type "
-                                f"'{type(curr_value)}'")
-            print(f'lower return with name = {name}, value = {value}')
+                                f"'{type(curr_value).__name__}'")
             return dict.__setitem__(self, name, value)
 
     def __setattr__(self, name, value):
         # main self.__setattr__ exists as a wrapper to prevent multiple
         # calls to self._config_update_hook within self.update
         try:
-            print('before __setattr_helper_')
             self.__setattr_helper_(name, value)
         except:
             raise
         else:
-            print('outer return')
             self._config_update_hook()
 
     def __setitem__(self, name: str, value: Any) -> None:

@@ -10,31 +10,12 @@ from clustertools.shared.typing import PathLike
 
 class BaseConfig(SyncedFile):
     # ADD DOCSTRING
-
     @staticmethod
-    def _environ_to_str(environ: Dict[str, str]) -> str:
+    def _environ_to_str(environ: Union[MonitoredEnviron, Dict[str, str]]) -> str:
         str_fmt = '\n'.join(' = '.join(item) for item in environ.items())
         if str_fmt != '':
             str_fmt = '\n' + str_fmt
         return str_fmt
-
-    @staticmethod
-    def _str_to_environ(environ_str: str) -> Dict[str, str]:
-        keys_vals = map(lambda x: x.split('='), environ_str.strip().splitlines())
-        return {k.strip(): v.strip() for k, v in keys_vals}
-
-    @staticmethod
-    def _str_to_type(key: str, value: str) -> Union[str, bool, int, Dict[str, str]]:
-        if value == 'true':
-            return True
-        elif value == 'false':
-            return False
-        elif value.isdigit():
-            return int(value)
-        elif key == 'environ':
-            return BaseConfig._str_to_environ(value)
-        else:
-            return value
 
     @staticmethod
     def _type_to_str(key: str, value: Union[str, bool, int, AttributeConfig]) -> str:
@@ -55,8 +36,7 @@ class BaseConfig(SyncedFile):
     ) -> None:
         # ADD DOCSTRING
         super().__init__(cluster=cluster, local_path=local_path, remote_path=remote_path)
-        self._configparser = self._load_configparser()
-        self._config = self._parse_config()
+        self._environ_update_hook = None
 
     def _config_update_hook(self):
         # TODO: rework how the hook is called and what args are passed
@@ -76,6 +56,12 @@ class BaseConfig(SyncedFile):
                 section[option] = self._type_to_str(option, conf_section[option])
         self.write_config_file()
 
+    def _init_local(self):
+        # NOTE: currently super()._init_local() just 'pass'es. If that
+        # changes, this should call it.
+        self._configparser = self._load_configparser()
+        self._config = self._parse_config()
+
     def _init_remote(self):
         if not self._cluster.is_dir(self.remote_path.parent):
             self._cluster.mkdir(self.remote_path.parent)
@@ -83,7 +69,7 @@ class BaseConfig(SyncedFile):
 
     def _load_configparser(self) -> ConfigParser:
         # the ConfigParser object is stored so it can be used to write to the file
-        parser = ConfigParser()
+        parser = ConfigParser(strict=True)
         # parser = ConfigParser(converters=BaseConfig.CONVERTERS)
         with self.local_path.open() as f:
             parser.read_file(f)
@@ -102,7 +88,26 @@ class BaseConfig(SyncedFile):
                 config[sec_name][subsec_name] = section_dict
             else:
                 config[sec_name] = section_dict
-        return AttributeConfig(config)
+        return AttributeConfig(config, update_hook=self._config_update_hook)
+
+    def _str_to_environ(self, environ_str: str) -> MonitoredEnviron:
+        keys_vals = map(lambda x: x.split('='), environ_str.strip().splitlines())
+        env_dict = {k.strip(): v.strip() for k, v in keys_vals}
+        return MonitoredEnviron(initial_env=dict(),
+                                custom_vars=env_dict,
+                                update_hook=self._environ_update_hook)
+
+    def _str_to_type(self, key: str, value: str) -> Union[str, bool, int, MonitoredEnviron]:
+        if value == 'true':
+            return True
+        elif value == 'false':
+            return False
+        elif value.isdigit():
+            return int(value)
+        elif key == 'environ':
+            return self._str_to_environ(value)
+        else:
+            return value
 
     def write_config_file(self):
         # ADD DOCSTRING
