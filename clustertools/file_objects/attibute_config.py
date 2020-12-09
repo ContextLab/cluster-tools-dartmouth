@@ -22,6 +22,8 @@ class AttributeConfig(dict):
     #     but `my_dict.middle_key.innerkey` does not (raises `KeyError`)
     #   - Keys are immutable but values are mutable, so the user can
     #     update config fields but can't delete them or add new ones
+    #   - Updated values assigned to fields must be the same type as the
+    #     original
     #   - An owner object (one with an AttributeConfig as an attribute)
     #     can define a `__getattr__` method that makes all
     #     AttributeConfig fields accessible as attributes of the owner.
@@ -73,7 +75,7 @@ class AttributeConfig(dict):
                         return _value.__setattr__(name, value)
                     except KeyError:
                         continue
-                    except AttributeError:
+                    except (AttributeError, TypeError):
                         raise
             else:
                 raise TypeError("'AttributeConfig' object does not support "
@@ -82,6 +84,9 @@ class AttributeConfig(dict):
             if isinstance(curr_value, AttributeConfig):
                 raise AttributeError("'AttributeConfig' subsections do not "
                                      "support assignment, only individual values")
+            elif not isinstance(value, type(curr_value)):
+                raise TypeError(f"Value assigned to '{name}' must be of type "
+                                f"'{type(curr_value)}'")
             return dict.__setitem__(self, name, value)
 
     def __setitem__(self, name: str, value: Any) -> None:
