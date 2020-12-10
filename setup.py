@@ -1,5 +1,5 @@
 # TODO:
-#  write a post_install function that sets up ~/.clustertools
+#  write a post_install function/cmdclass that sets up ~/.clustertools
 #  config directory with default global config and an empty projects/
 #  dir. Test that it works for pip install from PyPI, tarball, local
 #  git repo (regular and editable mode), and remote GitHub repo url

@@ -4,7 +4,7 @@ class that represents submitter, cruncher, collector, etc. scripts
 from pathlib import Path, PurePosixPath
 from typing import Optional
 
-from clustertools.configs.synced_file import SyncedFile
+from clustertools.file_objects.synced_file import SyncedFile
 from clustertools.project.project import Project
 from clustertools.shared.typing import PathLike
 

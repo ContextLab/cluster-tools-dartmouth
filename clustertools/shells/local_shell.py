@@ -2,14 +2,13 @@ import getpass
 import os
 import shutil
 import socket
-from os.path import expanduser, realpath
 from pathlib import Path
 from subprocess import CalledProcessError
 from typing import List, NoReturn, Optional, Union
 
 import spur
 
-from clustertools.shells.environ import PseudoEnviron
+from clustertools.shared.environ import PseudoEnviron
 from clustertools.shells.ssh_shell import SshShellMixin
 from clustertools.shared.typing import PathLike
 

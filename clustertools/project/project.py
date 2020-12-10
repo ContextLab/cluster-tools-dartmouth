@@ -1,7 +1,7 @@
 from typing import Optional, Union, Dict
 
 from clustertools.cluster import Cluster
-from clustertools.configs.project_config import ProjectConfig
+from clustertools.file_objects.project_config import ProjectConfig
 from clustertools.shared.typing import PathLike
 
 
@@ -10,7 +10,7 @@ class Project:
             self,
             name: str,
             cluster: Cluster,
-            root_dir: Optional[PathLike] = None,
+            # root_dir: Optional[PathLike] = None,
             submitter: Optional[PathLike] = None,
             cruncher: Optional[PathLike] = None,
             collector: Optional[PathLike] = None,
@@ -19,7 +19,7 @@ class Project:
     ) -> None:
         self.name = name
         self.cluster = cluster
-        self.root_dir = root_dir or cluster.resolve_path(self.name)
+        # self.root_dir = root_dir or cluster.resolve_path(self.name)
         self.submitter = submitter
         self.cruncher = cruncher
         self.collector = collector

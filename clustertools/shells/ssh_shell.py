@@ -1,23 +1,16 @@
 import getpass
-import locale
 import os
 import warnings
-from pathlib import PurePath, PurePosixPath
-from typing import Callable, List, Optional, Union, Tuple, Dict
+from pathlib import PurePosixPath
+from typing import List, Optional
 
 import spurplus
 from paramiko import SFTPAttributes
 from spur.results import RunProcessError
 
-from clustertools.shells.environ import PseudoEnviron
+from clustertools.shared.environ import PseudoEnviron
 from clustertools.shared.exceptions import SSHConnectionError
-from clustertools.shared.remote_process import RemoteProcess
-from clustertools.shared.typing import (MswStderrDest,
-                                        MswStdoutDest,
-                                        NoneOrMore,
-                                        OneOrMore,
-                                        PathLike,
-                                        Sequence)
+from clustertools.shared.typing import (PathLike)
 
 from clustertools.shells.base_shell import BaseShell
 ## noinspection PyAttributeOutsideInit,PyUnresolvedReferences
