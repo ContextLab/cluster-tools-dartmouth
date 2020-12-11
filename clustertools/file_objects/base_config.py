@@ -38,6 +38,20 @@ class BaseConfig(SyncedFile):
         super().__init__(cluster=cluster, local_path=local_path, remote_path=remote_path)
         self._environ_update_hook = None
 
+    def __getattr__(self, item):
+        # makes config options/values accessible via my_config.option
+        # rather than my_config._config.option
+        try:
+            return getattr(self._config, item)
+        except AttributeError as e:
+            raise AttributeError(f"'{self.__class__.__name__}' as no "
+                                 f"attribute '{item}'") from e
+
+    def __getitem__(self, item):
+        # makes config options/values accessible via my_config[option]
+        # rather than my_config._config[option]
+        return self._config[item]
+
     def _config_update_hook(self):
         # TODO: rework how the hook is called and what args are passed
         #  in AttributeConfig so that you have access to the key and
