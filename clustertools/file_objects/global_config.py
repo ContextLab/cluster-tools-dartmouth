@@ -10,6 +10,7 @@ from clustertools.shared.typing import PathLike
 
 class GlobalConfig(BaseConfig):
     # ADD DOCSTRING
+    # TODO: define __repr__ and/or __str__ methods, plus _repr_html_
     def __init__(self, cluster: Cluster, remote_path: Optional[PathLike] = None) -> None:
         # ADD DOCSTRING
         global_config_path_local = CLUSTERTOOLS_CONFIG_DIR.joinpath('global_config.ini')
@@ -21,9 +22,8 @@ class GlobalConfig(BaseConfig):
         if not self.local_path.is_file():
             if not CLUSTERTOOLS_CONFIG_DIR.is_dir():
                 CLUSTERTOOLS_CONFIG_DIR.mkdir()
-            src = CLUSTERTOOLS_TEMPLATES_DIR.joinpath('global_config.ini')
-            dest = CLUSTERTOOLS_CONFIG_DIR.joinpath('global_config.ini')
-            shutil.copy2(str(src), str(dest))
+            template_path = CLUSTERTOOLS_TEMPLATES_DIR.joinpath('global_config.ini')
+            shutil.copy2(str(template_path), str(self.local_path))
         super()._init_local()
 
     def _init_remote(self):
@@ -31,14 +31,14 @@ class GlobalConfig(BaseConfig):
             self._config.login.project_dir = self._cluster.getenv('HOME', default='$HOME')
         super()._init_remote()
 
-
     def create_project_config(self, project_name: str) -> ConfigParser:
         # ADD DOCSTRING
         project_parser = ConfigParser(strict=True)
         project_parser['general'] = self._configparser['project_defaults']
         project_parser['runtime_environment'] = self._configparser['project_defaults.runtime_environment']
         project_parser['PBS_params'] = self._configparser['project_defaults.PBS_params']
-        project_parser['job_notifications'] = self._configparser['project_defaults.job_notifications']
+        project_parser['notifications'] = self._configparser['project_defaults.notifications']
+        project_parser['monitoring'] = self._configparser['project_defaults.monitoring']
         if project_parser.get('general', 'job_basename') == 'INFER':
             project_parser.set('general', 'job_basename', project_name)
         project_config_local_path = CLUSTERTOOLS_CONFIG_DIR.joinpath(project_name, 'project_config.ini')
