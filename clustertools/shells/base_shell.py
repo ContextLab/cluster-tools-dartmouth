@@ -216,6 +216,7 @@ class BaseShell:
     def spawn_process(
             self,
             command: OneOrMore[str],
+            executable: Optional[str] = None,
             options: NoneOrMore[str] = None,
             working_dir: Optional[PathLike] = None,
             tmp_env: Optional[Dict[str, str]] = None,
@@ -230,37 +231,30 @@ class BaseShell:
             callback_args: Optional[Tuple] = None,
             callback_kwargs: Optional[Dict] = None
     ) -> RemoteProcess:
-        # ADD DOCSTRING -- note that '-c' option is appended automatically
-        # might just be base function for self.exec_command(block=True/False).
-        # passing list of strings is equivalent to &&-joining them
-        # if stdout/stderr are None, default to just writing to the object
-
+        # ADD DOCSTRING -- note that:
+        #  - '-c' option is appended automatically
+        #  - passing list of strings is equivalent to &&-joining them
+        #  - if stdout/stderr are None, defaults to just writing to the object
         # set defaults and funnel types
-        if isinstance(command, str):
-            command = [command]
-        elif isinstance(command, Sequence):
+        if isinstance(command, Sequence):
             command = ' && '.join(command)
-
+        executable = executable or self.executable
         if options is None:
             options = list()
         elif isinstance(options, str):
             options = [options]
-
         if tmp_env is not None:
-            _tmp_env = self.environ.copy()
-            _tmp_env.update(tmp_env)
-            tmp_env = _tmp_env
+            _base_env = self.environ.copy()
+            _base_env.update(tmp_env)
+            tmp_env = _base_env
         else:
             tmp_env = dict(self.environ)
-
         # format command string
-        full_command = [self.executable]
+        full_command = [executable]
         for opt in options:
             full_command.extend(opt.split())
-
         full_command.append('-c')
         full_command.append(command)
-
         # create RemoteProcess instance
         proc = RemoteProcess(command=command,
                              ssh_shell=self.shell,
