@@ -11,7 +11,7 @@ from clustertools.shells.ssh_shell import SshShellMixin
 from clustertools.shared.typing import PathLike
 
 
-## noinspection PyAttributeOutsideInit,PyUnresolvedReferences
+## noinspection PyAttributeOutsideInit, PyUnresolvedReferences
 class LocalShellMixin:
     # ADD DOCSTRING
     def __getattr__(self, item):

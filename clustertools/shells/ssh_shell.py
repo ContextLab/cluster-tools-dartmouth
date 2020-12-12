@@ -348,9 +348,9 @@ class SshShellMixin:
             initial_env = self.shell.run(printenv_command).output.split('\nBASH_FUNC_module()')[0]
             initial_env = dict(map(lambda x: x.split('=', maxsplit=1), initial_env.splitlines()))
             self._environ = PseudoEnviron(initial_env=initial_env, custom_vars=self._env_additions)
-            # initial validation of properties that depend on environment
-            self.cwd = self._cwd
-            self.executable = self._executable
+        # initial validation of properties that depend on environment
+        self.cwd = self._cwd
+        self.executable = self._executable
 
     def disconnect(self) -> None:
         # ADD DOCSTRING
