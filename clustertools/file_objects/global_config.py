@@ -5,6 +5,7 @@ from typing import Optional
 from clustertools import CLUSTERTOOLS_CONFIG_DIR, CLUSTERTOOLS_TEMPLATES_DIR
 from clustertools.cluster import Cluster
 from clustertools.file_objects.base_config import BaseConfig
+from clustertools.file_objects.config_update_hooks import GLOBAL_CONFIG_UPDATE_HOOKS
 from clustertools.shared.typing import PathLike
 
 
@@ -17,6 +18,7 @@ class GlobalConfig(BaseConfig):
         super().__init__(cluster=cluster,
                          local_path=global_config_path_local,
                          remote_path=remote_path)
+        self._attr_update_hooks = GLOBAL_CONFIG_UPDATE_HOOKS
 
     def _init_local(self):
         if not self.local_path.is_file():

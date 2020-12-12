@@ -2,7 +2,8 @@ from configparser import ConfigParser
 from typing import Dict, Optional, Union
 
 from clustertools.cluster import Cluster
-from clustertools.file_objects.tracked_attr_config import AttributeConfig
+from clustertools.file_objects.config_update_hooks import write_updated_config
+from clustertools.file_objects.tracked_attr_config import TrackedAttrConfig
 from clustertools.file_objects.synced_file import SyncedFile
 from clustertools.shared.environ import MonitoredEnviron
 from clustertools.shared.typing import PathLike
@@ -18,7 +19,7 @@ class BaseConfig(SyncedFile):
         return str_fmt
 
     @staticmethod
-    def _type_to_str(key: str, value: Union[str, bool, int, AttributeConfig]) -> str:
+    def _type_to_str(key: str, value: Union[str, bool, int, TrackedAttrConfig]) -> str:
         if value is True or value is False:
             return str(value).lower()
         elif isinstance(value, int):
@@ -37,9 +38,10 @@ class BaseConfig(SyncedFile):
         # ADD DOCSTRING
         super().__init__(cluster=cluster, local_path=local_path, remote_path=remote_path)
         self._environ_update_hook = None
+        self._attr_update_hooks = dict()
 
     def __getattr__(self, item):
-        # makes AttributeConfig methods and fields accessible directly
+        # makes TrackedAttrConfig methods and fields accessible directly
         # on this object, rather than via the object's ._config attr
         try:
             return getattr(self._config, item)
@@ -53,7 +55,7 @@ class BaseConfig(SyncedFile):
         return self._config[item]
 
     def __setattr__(self, name, value):
-        # makes top-level AttributeConfig fields settable directly on
+        # makes top-level TrackedAttrConfig fields settable directly on
         # this object. Does attribute lookup via self.__dict__ to avoid
         # recusrive interaction with getattr() call in self.__getattr__
         _d = self.__dict__
@@ -67,27 +69,13 @@ class BaseConfig(SyncedFile):
         # in self._config
         self._config[key] = value
 
-    def _config_update_hook(self) -> None:
-        # TODO: rework how the hook is called and what args are passed
-        #  in AttributeConfig so that you have access to the key and
-        #  value inside this function and can just update one field of
-        #  self._configparser rather than the whole thing every time
-        for sec_name, section in self._configparser.items():
-            if sec_name == 'DEFAULT':
-                continue
-            elif '.' in sec_name:
-                conf_sec, conf_subsec = sec_name.split('.')
-                conf_section = self._config[conf_sec][conf_subsec]
-            else:
-                conf_sec = sec_name
-                conf_section = self._config[conf_sec]
-            for option, value in section.items():
-                section[option] = self._type_to_str(option, conf_section[option])
-        self.write_config_file()
-
     def _init_local(self):
         # NOTE: currently super()._init_local() just 'pass'es. If that
         # changes, this should call it.
+        # bind hooks to config object instance
+        for field, hook in self._attr_update_hooks.items():
+            self._attr_update_hooks[field] = hook(self)
+        write_updated_config = write_updated_config(self)
         self._configparser = self._load_configparser()
         self._config = self._parse_config()
 
@@ -104,7 +92,7 @@ class BaseConfig(SyncedFile):
             parser.read_file(f)
         return parser
 
-    def _parse_config(self) -> AttributeConfig:
+    def _parse_config(self) -> TrackedAttrConfig:
         config = dict()
         for sec_name, section in self._configparser.items():
             if sec_name == 'DEFAULT':
@@ -117,7 +105,9 @@ class BaseConfig(SyncedFile):
                 config[sec_name][subsec_name] = section_dict
             else:
                 config[sec_name] = section_dict
-        return AttributeConfig(config, update_hook=self._config_update_hook)
+        return TrackedAttrConfig(config,
+                                 attr_update_hooks=self._attr_update_hooks,
+                                 common_update_hook=write_updated_config)
 
     def _str_to_environ(self, environ_str: str) -> MonitoredEnviron:
         keys_vals = map(lambda x: x.split('='), environ_str.strip().splitlines())
@@ -140,7 +130,7 @@ class BaseConfig(SyncedFile):
 
     def write_config_file(self):
         # ADD DOCSTRING
-        # called from inside the AttributeConfig's update hook to write
+        # called from inside the TrackedAttrConfig's update hook to write
         # changes to the original file and sync with remote, if connected
         with self.local_path.open('w') as f:
             self._configparser.write(f, space_around_delimiters=True)

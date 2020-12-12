@@ -1,6 +1,6 @@
 from clustertools import CLUSTERTOOLS_CONFIG_DIR
 from clustertools.project.project import Project
-from clustertools.file_objects.attibute_config import AttributeConfig
+from clustertools.file_objects.tracked_attr_config import TrackedAttrConfig
 from clustertools.file_objects.base_config import BaseConfig
 
 
@@ -9,11 +9,9 @@ class ProjectConfig(BaseConfig):
     def __init__(self, project: Project):
         # ADD DOCSTRING
         # currently, cluster.connected is guaranteed to be True at this point
-        cluster = project.cluster
+        cluster = project._cluster
         local_path = CLUSTERTOOLS_CONFIG_DIR.joinpath(project.name, 'project_config.ini')
-        # shortcut to $HOME/.clustertools/project_name/project_config.ini
-        # that doesn't require running any remote commands
-        remote_path = cluster.config.remote_path.parent.joinpath(project.name, 'project_config.ini')
+        remote_path = cluster.getenv('HOME').joinpath('.clustertools', project.name, 'project_config.ini')
         super().__init__(cluster=cluster, local_path=local_path, remote_path=remote_path)
         self._project = project
 
@@ -36,7 +34,7 @@ class ProjectConfig(BaseConfig):
             # set self._configparser and self._config
             super()._init_local()
 
-    def _parse_config(self) -> AttributeConfig:
+    def _parse_config(self) -> TrackedAttrConfig:
         # priority order for environment variables goes
         # cluster shell environment (read from printenv) < defaults
         # specified in global_config.ini (before this project's config

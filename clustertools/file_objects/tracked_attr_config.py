@@ -14,7 +14,7 @@ class TrackedAttrConfig(dict):
     #     `my_dict["outerkey"]["middlekey"]["innerkey"]`
     #   - all keys are available as top-level attributes regardless of
     #     nesting level, except for those whose values are also
-    #     AttributeConfigs. This is proactively disallowed
+    #     TrackedAttrConfigs. This is proactively disallowed
     #     (see `self.__getattr__`) to keep the interface from getting
     #     *too* confusing. The idea is that you can set nested values
     #     without overly verbose indexing, e.g., `my_dict.innerkey = 1`
@@ -24,9 +24,9 @@ class TrackedAttrConfig(dict):
     #     update config fields but can't delete them or add new ones
     #   - Updated values assigned to fields must be the same type as the
     #     original
-    #   - An owner object (one with an AttributeConfig as an attribute)
+    #   - An owner object (one with an TrackedAttrConfig as an attribute)
     #     can define a `__getattr__` method that makes all
-    #     AttributeConfig fields accessible as attributes of the owner.
+    #     TrackedAttrConfig fields accessible as attributes of the owner.
     #     These proxied attribute names will *NOT* override attr/method
     #     names defined on the owner class *OR* any parent classes or
     #     mixins
@@ -186,4 +186,4 @@ class TrackedAttrConfig(dict):
             self._common_update_hook(E)
 
     def setdefault(self, key: Any, default: Optional[Any] = None) -> NoReturn:
-        raise TypeError("'TrackedAttributeConfig' object does not support key insertion")
+        raise TypeError("'TrackedAttrConfig' object does not support key insertion")
