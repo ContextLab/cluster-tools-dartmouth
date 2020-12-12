@@ -2,7 +2,7 @@ from configparser import ConfigParser
 from typing import Dict, Optional, Union
 
 from clustertools.cluster import Cluster
-from clustertools.file_objects.attibute_config import AttributeConfig
+from clustertools.file_objects.tracked_attr_config import AttributeConfig
 from clustertools.file_objects.synced_file import SyncedFile
 from clustertools.shared.environ import MonitoredEnviron
 from clustertools.shared.typing import PathLike
@@ -39,20 +39,35 @@ class BaseConfig(SyncedFile):
         self._environ_update_hook = None
 
     def __getattr__(self, item):
-        # makes config options/values accessible via my_config.option
-        # rather than my_config._config.option
+        # makes AttributeConfig methods and fields accessible directly
+        # on this object, rather than via the object's ._config attr
         try:
             return getattr(self._config, item)
-        except AttributeError as e:
+        except KeyError:
             raise AttributeError(f"'{self.__class__.__name__}' as no "
-                                 f"attribute '{item}'") from e
+                                 f"attribute '{item}'") from None
 
     def __getitem__(self, item):
         # makes config options/values accessible via my_config[option]
         # rather than my_config._config[option]
         return self._config[item]
 
-    def _config_update_hook(self):
+    def __setattr__(self, name, value):
+        # makes top-level AttributeConfig fields settable directly on
+        # this object. Does attribute lookup via self.__dict__ to avoid
+        # recusrive interaction with getattr() call in self.__getattr__
+        _d = self.__dict__
+        if name not in _d and '_config' in _d and name in _d['_config']:
+            self._config.__setattr__(name, value)
+        else:
+            super().__setattr__(name, value)
+
+    def __setitem__(self, key, value):
+        # makes the object support item assignment, but only for fields
+        # in self._config
+        self._config[key] = value
+
+    def _config_update_hook(self) -> None:
         # TODO: rework how the hook is called and what args are passed
         #  in AttributeConfig so that you have access to the key and
         #  value inside this function and can just update one field of
