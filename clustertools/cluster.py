@@ -1,3 +1,4 @@
+import os
 from pathlib import PurePosixPath
 from typing import Optional, Tuple
 
@@ -12,11 +13,12 @@ from clustertools.shared.typing import NoneOrMore
 # clustertools config directory structure
 #  $HOME
 #  └── .clustertools/
-#      ├── project_config.ini
-#      └── projects/
-#          ├── projectname1.ini
-#          ├── projectname2.ini
-#          └── ...
+#      ├── global_config.ini
+#      ├── project_name_1/
+#      │   └── .project_config.ini
+#      ├── project_name_2/
+#      │   └── .project_config.ini
+#      └── ...
 
 
 class Cluster(BaseShell):
@@ -26,20 +28,21 @@ class Cluster(BaseShell):
             hostname: str,
             username: Optional[str] = None,
             password: Optional[str] = None,
-            connect: bool = False,
-            **ssh_kwargs
+            connect: bool = True,
+            **shell_kwargs
     ) -> None:
         # ADD DOCSTRING
         _local = hostname == 'localhost'
         if _local:
             raise NotImplementedError("Configuration for local deployment is "
                                       "not yet fully supported")
-
         self.config = GlobalConfig(cluster=self)
-        cwd = ssh_kwargs.pop('cwd', self.config.project_dir)
-        executable = ssh_kwargs.pop('executable', self.config.executable)
-        env_additions = ssh_kwargs.pop('env_additions', None)
-        port = ssh_kwargs.pop('port', None)
+        cwd = shell_kwargs.pop('cwd', None)
+        if cwd is None and self.config.general.start_in_project_dir:
+            cwd = self.config.general.project_dir
+        executable = shell_kwargs.pop('executable', self.config.general.executable)
+        env_additions = shell_kwargs.pop('env_additions', None)
+        port = shell_kwargs.pop('port', None)
         super().__init__(hostname=hostname,
                          username=username,
                          password=password,
@@ -50,9 +53,10 @@ class Cluster(BaseShell):
                          connect=False,
                          _local=_local)
         if connect and not _local:
-            self.connect(**ssh_kwargs)
-
+            self.connect(**shell_kwargs)
         self.project = None
+        self._all_projects = tuple(next(os.walk(CLUSTERTOOLS_CONFIG_DIR))[1])
+
 
     # TODO: define __eq__ and __isinstancecheck__ methods since dynamic
     #  retyping breaks type checks
@@ -71,15 +75,9 @@ class Cluster(BaseShell):
             retries: int = 0,
             retry_delay: int = 1
     ) -> None:
-        # NOTE: when connecting, need to initialize with CWD set to $HOME,
-        # then switch to remote_root in case it doesn't exist
-        #
-        # FOLLOW UP NOTE: why did I think I needed to do this? Was it so
-        # the user could connect with cwd set to the dir for a new
-        # project, and it'd be created before chdir'ing there? Probably
-        # not a good idea, since typos are much more likely and standard
-        # use will be using global config
-
+        # ADD DOCSTRING
+        # TODO(?): after connecting, check all local project dirs exist
+        #  on remote and are synced (checksums match)
         super().connect(hostname=hostname,
                         username=username,
                         password=password,
@@ -95,14 +93,8 @@ class Cluster(BaseShell):
     #                   PROJECT MANAGEMENT                   #
     ##########################################################
     @property
-    def all_projects(self) -> Tuple[str]:
-        # ADD DOCSTRING - returns a tuple of existing remote projects
-        try:
-            return self._cache['all_projects']
-        except KeyError:
-            projects = tuple(str(i.name) for i in CLUSTERTOOLS_CONFIG_DIR.iterdir() if i.is_dir())
-            self._cache['all_projects'] = projects
-            return self._cache['all_projects']
+    def all_projects(self):
+        return self._all_projects
 
     def _mixin_project(self):
         # adds functionality that simplify interfacing with a Project
@@ -119,12 +111,12 @@ class Cluster(BaseShell):
     def create_project(self, name: str, **kwargs):
         # ADD DOCSTRING - creates a new project configuration & an entry
         #  in $HOME/.clustertools
+        # TODO: should take all (or most) arguments in Project constructor
         # TODO: would be possible to allow creating/partially loading
         #  projects before connecting, but would require a lot of
         #  additional coding around possible scenarios
         if not self.connected:
-            raise SSHConnectionError("SSH connection must be open to create "
-                                     "or load projects")
+            raise SSHConnectionError("SSH connection must be open to create a project")
         elif self.project is not None:
             raise ClusterToolsProjectError(
                 "Cannot create a project when one is already loaded. Use "
@@ -132,56 +124,87 @@ class Cluster(BaseShell):
                 "before creating a new one."
             )
         elif name in self.all_projects:
-            raise ClusterToolsProjectError(f"Project '{name}' already exists."
-                                           f"Use Cluster.load_project('{name}') "
-                                           "to load its previous state.")
-        self.project = Project(name=name, cluster=self, )
-
-
-
-
+            raise ClusterToolsProjectError(
+                f"Project '{name}' already exists. Use "
+                f"Cluster.load_project('{name}') to load its previous state."
+            )
+        self.project = Project(name=name, cluster=self, **kwargs)
+        self._all_projects = tuple(list(self._all_projects) + [self.project.name])
+        self._mixin_project()
 
     def load_project(self, name: str):
-        # loads a prjoect form $HOME/.clustertools
+        # ADD DOCSTRING
+        # loads a project form $HOME/.clustertools
         if not self.connected:
-            raise SSHConnectionError("SSH connection must be open to create "
-                                     "or load projects")
-        elif
+            raise SSHConnectionError("SSH connection must be open to load a project")
+        elif self.project is not None:
+            raise ClusterToolsProjectError(
+                f"Project '{self.project.name}' is already loaded. Use "
+                "'Cluster.unload_project()' to unload the current project "
+                "before loading a new one"
+            )
+        self.project = Project.load(name=name, cluster=self)
+        self._mixin_project()
 
-        pass
-
-    def remove_project(self, name: str):
+    def delete_project(self, name: str, yes: Optional[bool] = None, force: bool = False):
+        # ADD DOCSTRING - note that:
+        #  - manually setting 'yes' to either True or False overrides
+        #    value of general.confirm_project_deletion in global config
+        #  - passing 'force=True' is like passing 'yes=True' but ALSO
+        #    will delete the project even if it's loaded and/or has
+        #    running jobs (jobs will be stopped)
+        # TODO: write main body
         # removes a project configuration in $HOME/.clustertools
         # warns if not all jobs completed & prompts to confirm always
+        if force:
+            if yes is False:
+                raise ValueError("Cannot pass both 'yes=False' and 'force=True'")
+            else:
+                yes = True
+        elif yes is None:
+            yes = self.config.general.confirm_project_deletion
+        if self.project.name == name:
+            if force:
+                self.unload_project()
+            else:
+                raise ClusterToolsProjectError(
+                    f"Project '{self.project.name}' is currently loaded. Use "
+                    "'Cluster.unload_project()' to unload the project before "
+                    "deleting (or pass 'force=True')"
+                )
+        # check if project has running jobs
+        # if project has running jobs
+            # if force
+                # stop all jobs (killthemall)
+            # else
+                # raise ClusterToolsProjectError
+        # if not yes:
+            # confirmed = prompt for y/n "are you sure ______"
+        # else:
+            # confirmed = True
+        # if confirmed:
+            # delete relevant files and directories
         ...
-        self._cache.pop('all_projects')
-        pass
+        _projs = list(self._all_projects)
+        _projs.remove(name)
+        self._all_projects = tuple(_projs)
 
-    def unload_project(self):
+    def unload_project(self, save_state: bool = True):
+        # ADD DOCSTRING - note that user should never set 'save_state'
+        #  to False unless they're planning to delete the project
+        #  immediately after unloading
+        # TODO: write me
         # unloads the current project and "mixes out" the ProjectMixin
+        ...
+        self._mixout_project()
         pass
 
     def status(self, projects: NoneOrMore[str] = None):
+        # ADD DOCSTRING
+        # TODO: write me
         # displays status info for jobs associated with one,
         # multiple, or [default] all projects
         pass
-
-
-
-
-
-
-    def _auto_detect_notebook(self):
-        pass
-
-
-
-
-
-
-
-
-
 
 
 
