@@ -6,13 +6,13 @@ from clustertools.cluster import Cluster
 from clustertools.shared.exceptions import SSHConnectionError
 from clustertools.shared.typing import PathLike
 
-# TODO: remove NotImplementedErrors once finished writing
+
 class SyncedFile:
     # ADD DOCSTRING
     def __init__(
             self,
             cluster: Cluster,
-            local_path: PathLike = None,
+            local_path: Optional[PathLike] = None,
             remote_path: Optional[PathLike] = None
     ):
         # ADD DOCSTRING
@@ -20,7 +20,6 @@ class SyncedFile:
         self._cluster = cluster
         self._local_path = None
         self._remote_path = None
-
         if local_path is not None:
             self.local_path = local_path
         if remote_path is not None:
@@ -34,8 +33,7 @@ class SyncedFile:
     @local_path.setter
     def local_path(self, path: PathLike):
         if self._local_path is not None:
-            raise AttributeError("local/remote path mapping is "
-                                 "read-only once set")
+            raise AttributeError("local/remote path mapping is read-only once set")
         path = self._cluster._resolve_path_local(Path(path), strict=False)
         self._local_path = path
         self._init_local()
@@ -48,12 +46,12 @@ class SyncedFile:
     @remote_path.setter
     def remote_path(self, path: PathLike):
         if self._remote_path is not None:
-            raise AttributeError("local/remote path mapping is "
-                                 "read-only once set")
+            raise AttributeError("local/remote path mapping is read-only once set")
         elif not self._cluster.connected:
-            raise SSHConnectionError("Connection to remote host must be "
-                                     "open to assign a remote path to a "
-                                     "file mapping")
+            raise SSHConnectionError(
+                "Connection to remote host must be open to assign a remote "
+                "path to a file mapping"
+            )
         path = self._cluster.resolve_path(PurePosixPath(path), strict=False)
         self._remote_path = path
         self._init_remote()
@@ -70,13 +68,7 @@ class SyncedFile:
     @property
     def md5sum_remote(self) -> str:
         # ADD DOCSTRING
-        if hasattr(self, 'project'):
-            return self.project.cluster.shell.md5(self.remote_path)
-        elif hasattr(self, 'cluster'):
-            return self.cluster.shell.md5(self.remote_path)
-        else:
-            raise NotImplementedError("Not supported for objects not "
-                                      "associated with a 'cluster' object")
+        return self._cluster.shell.md5(self.remote_path)
 
     @property
     def is_synced(self):
@@ -97,20 +89,12 @@ class SyncedFile:
             self.upload()
 
     def upload(self) -> None:
-        if hasattr(self, 'project'):
-            put = self.project.cluster.shell.put
-        elif hasattr(self, 'cluster'):
-            put = self.cluster.shell.put
-        else:
-            raise NotImplementedError("Not supported for objects not "
-                                      "associated with a 'cluster' object")
+        self._cluster.put(local_path=self.local_path,
+                          remote_path=self.remote_path,
+                          create_directories=False,
+                          consistent=True)
 
-        return put(local_path=self.local_path,
-                   remote_path=self.remote_path,
-                   create_directories=False,
-                   consistent=True)
-
-    def sync(self):
+    def sync(self) -> None:
         # ADD DOCSTRING
         # TODO: add option to "prefer" local, remote, or most recently
         #  edited version of file
