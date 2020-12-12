@@ -30,19 +30,25 @@ class SshShellMixin:
     @cwd.setter
     def cwd(self, new_cwd: Optional[PathLike]) -> None:
         if not self.connected:
-            # can't validate if no connected (will be done on connecting)
-            self._cwd = PurePosixPath(new_cwd)
+            # can't validate if not connected (will be done on connecting)
+            try:
+                self._cwd = PurePosixPath(new_cwd)
+            except TypeError:
+                if new_cwd is None:
+                    self._cwd = PurePosixPath('$HOME')
+                else:
+                    raise
         else:
             old_pwd = self.getenv('OLDPWD')
             try:
-                if new_cwd is None:
+                if new_cwd in {None, '~', '~/', '$HOME', '$HOME/', self.getenv('HOME')}:
                     # internal shortcut to skip validation when
                     # defaulting/resetting cwd to $HOME
                     self._cwd = PurePosixPath(self.environ.get('HOME'))
                 else:
-                    new_cwd = PurePosixPath(new_cwd)
-                    if not new_cwd.is_absolute():
-                        raise AttributeError('Working directory must be an absolute path.')
+                    new_cwd = self.resolve_path(PurePosixPath(new_cwd), strict=True)
+                    # if not new_cwd.is_absolute():
+                    #     raise AttributeError('Working directory must be an absolute path.')
                     try:
                         if not self.shell.is_dir(new_cwd):
                             # new_cwd points to a file

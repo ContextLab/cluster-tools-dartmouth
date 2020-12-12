@@ -165,8 +165,7 @@ class BaseShell:
 
     def chdir(self, path: PathLike) -> None:
         # ADD DOCSTRING
-        path = self.resolve_path(path)
-        # functionally equivalent to setting self.cwd property with checks
+        # equivalent to self.cwd property's setter with checks
         self.cwd = path
 
     def getcwd(self) -> str:
