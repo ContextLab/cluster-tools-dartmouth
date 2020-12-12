@@ -1,7 +1,7 @@
 import getpass
 import os
 import socket
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Callable, Optional, Union, Tuple, Dict
 
 import spur
@@ -14,6 +14,7 @@ from clustertools.shared.typing import (MswStderrDest,
                                         OneOrMore,
                                         PathLike,
                                         Sequence)
+
 
 ## noinspection PyAttributeOutsideInit,PyUnresolvedReferences
 class BaseShell:
@@ -51,19 +52,23 @@ class BaseShell:
         #  been read from a bash shell
 
         # TODO: make _local required but keyword-only?
-        self._hostname = hostname
-        self._username = username
         self._env_additions = env_additions or dict()
         self._environ = None
         self._cwd = cwd
         self._executable = executable
-        self._shell = None
-        # for property result caching
-        self._cache = dict()
         self.connected = False
-        self.port = connection_kwargs.get('port')
-        if connect and not _local:
-            self.connect(password=password, **connection_kwargs)
+        if _local:
+            self._shell = spur.LocalShell()
+            self._hostname = socket.gethostname()
+            self._username = getpass.getuser()
+            self._port = None
+        else:
+            self._shell = None
+            self._hostname = hostname
+            self._username = username
+            self._port = connection_kwargs.pop('port', None)
+            if connect:
+                self.connect(password=password, **connection_kwargs)
 
     def __enter__(self):
         return self

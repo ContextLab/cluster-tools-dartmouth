@@ -1,7 +1,5 @@
-import getpass
 import os
 import shutil
-import socket
 from pathlib import Path
 from subprocess import CalledProcessError
 from typing import List, NoReturn, Optional, Union
@@ -83,29 +81,27 @@ class LocalShellMixin:
 
     @property
     def hostname(self) -> str:
-        try:
-            return self._cache['hostname']
-        except KeyError:
-            self._cache['hostname'] = socket.gethostname()
-            return self._cache['hostname']
+        return self._hostname
 
     @hostname.setter
     def hostname(self, new_hostname) -> NoReturn:
         raise AttributeError("'hostname' does not support assignment for local shells")
 
     @property
+    def port(self) -> int:
+        return self._port
+
+    @port.setter
+    def port(self, new_port) -> NoReturn:
+        raise AttributeError("'port' does not support assignment for local shells")
+
+    @property
     def shell(self) -> spur.LocalShell:
-        if self._shell is None:
-            self._shell = spur.LocalShell()
         return self._shell
 
     @property
     def username(self) -> str:
-        try:
-            return self._cache['username']
-        except KeyError:
-            self._cache['username'] = getpass.getuser()
-            return self._cache['username']
+        return self._username
 
     @username.setter
     def username(self, new_username) -> NoReturn:

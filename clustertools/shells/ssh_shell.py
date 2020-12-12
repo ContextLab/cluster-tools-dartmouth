@@ -13,6 +13,8 @@ from clustertools.shared.exceptions import SSHConnectionError
 from clustertools.shared.typing import (PathLike)
 
 from clustertools.shells.base_shell import BaseShell
+
+
 ## noinspection PyAttributeOutsideInit,PyUnresolvedReferences
 class SshShellMixin:
     # ADD DOCSTRING
@@ -26,7 +28,7 @@ class SshShellMixin:
         return self._cwd
 
     @cwd.setter
-    def cwd(self: BaseShell, new_cwd: Optional[PathLike]) -> None:
+    def cwd(self, new_cwd: Optional[PathLike]) -> None:
         if not self.connected:
             # can't validate if no connected (will be done on connecting)
             self._cwd = PurePosixPath(new_cwd)
@@ -42,10 +44,9 @@ class SshShellMixin:
                     if not new_cwd.is_absolute():
                         raise AttributeError('Working directory must be an absolute path.')
                     try:
-                        assert self.shell.is_dir(new_cwd)
-                    except AssertionError as e:
-                        # new_cwd points to a file
-                        raise NotADirectoryError(f"{new_cwd}: Not a directory") from e
+                        if not self.shell.is_dir(new_cwd):
+                            # new_cwd points to a file
+                            raise NotADirectoryError(f"{new_cwd}: Not a directory")
                     except FileNotFoundError as e:
                         # new_cwd doesn't exist
                         raise FileNotFoundError(f"{new_cwd}: No such file or directory") from e
@@ -107,6 +108,16 @@ class SshShellMixin:
         if self.connected:
             raise AttributeError("Can't update hostname while connection is open")
         self._hostname = new_hostname
+
+    @property
+    def port(self) -> int:
+        return self._port
+
+    @port.setter
+    def port(self, new_port: int):
+        if self.connected:
+            raise AttributeError("Can't update port while connection is open")
+        self._port = new_port
 
     @property
     def shell(self) -> spurplus.SshShell:
@@ -305,12 +316,11 @@ class SshShellMixin:
                 'to disconnect from the current host before connecting to a new '
                 'one, or `SshShell.reconnect` to reset the connection to the '
                 'current host')
-
         port = port or self.port or 22
         hostname = hostname or self.hostname or input("Hostname: ")
         username = username or self.username or input("Username: ")
         if password is None and not use_key:
-            password = getpass.getpass('Password: ')
+            password = getpass.getpass("Password: ")
         self._shell = spurplus.connect_with_retries(hostname=hostname,
                                                     username=username,
                                                     password=password,
@@ -320,9 +330,10 @@ class SshShellMixin:
                                                     retries=retries,
                                                     retry_period=retry_delay)
         # only update attrs if connection is successful
+        self.hostname = hostname
+        self.username = username
         self.port = port
         self.connected = True
-
         if self._environ is None:
             # read environment variables
             tmp_exe = self.executable or '/bin/bash'
@@ -339,7 +350,6 @@ class SshShellMixin:
         # ADD DOCSTRING
         if not self.connected:
             raise SSHConnectionError('Not currently connected to a remote host')
-
         self.shell.close()
         self.connected = False
         self.port = None
