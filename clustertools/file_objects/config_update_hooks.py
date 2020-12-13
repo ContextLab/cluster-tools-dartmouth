@@ -36,7 +36,8 @@ def write_updated_config(inst: BaseConfig, keys_newvals: Dict[str, Any]) -> None
 def project_dir_update_hook(inst: GlobalConfig, new_dir: str) -> None:
     # TODO: write me... this is a tricky one. will need to
     #  inst._cluster.check_output() a 'mv' command for each project in
-    #  the old project_dir
+    #  the old project_dir. Also should confirm
+    #  inst._cluster.is_dir(PurePosixPath(new_dir)) first
     pass
 
 
@@ -52,6 +53,8 @@ def executable_update_hook(inst: GlobalConfig, new_exe: str) -> None:
 @bindable
 def data_subdir_update_hook(inst: ProjectConfig, new_dir: str) -> None:
     # TODO: write me
+    # require that it be a subdirectory (not is_absolute is probably the
+    # closest possible check)
     # if self._project.doesnt_have_jobs_running:
         # inst._cluster.rename_the_data_dir
     pass

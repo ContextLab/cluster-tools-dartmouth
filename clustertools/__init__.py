@@ -20,3 +20,6 @@ CLUSTERTOOLS_TEMPLATES_DIR = Path(__file__).resolve().parent.joinpath('templates
 # TODO: write global '_auto_detect_notebook' function that initializes
 #  variables that control output appearance/behavior based on whether
 #  clustertools was imported in a Jupyter Notebook
+
+# TODO: decide whether to make numpy a requirement, optional requirement,
+#  tests_require (for static type checking only), or leave out altogether

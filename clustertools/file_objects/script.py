@@ -21,10 +21,5 @@ class ProjectScript(SyncedFile):
         # so it's always up-to-date
         return self.local_path.read_text()
 
-    def _init_local(self) -> None:
-        # NOTE: currently super()._init_local() just 'pass'es. If that
-        # changes, this should call it.
-        self._content = self.local_path.read_text()
-
     def __repr__(self):
         return f'{self.local_path} -> {self.remote_path}\n\n{self.content}'

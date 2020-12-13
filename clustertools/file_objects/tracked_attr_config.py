@@ -141,7 +141,6 @@ class TrackedAttrConfig(dict):
 
     # noinspection PyPep8Naming
     def update(self, E, **F) -> None:
-        print('staring update')
         # params named to match dict.update() docstring/signature
         # expensive but safe approach: prevents all changes if one
         # assignment from F fails
@@ -150,8 +149,6 @@ class TrackedAttrConfig(dict):
 #         pre_update = self.copy()
         try:
             for key, value in E.items():
-                print(f'===== setting {key} to {value} =====')
-                print(f'before:\n\t{self}')
                 # record each pre-self.update value...
                 pre_update_key = self.__getattr__(key)
                 # manually update the fields one-by-one
@@ -164,20 +161,14 @@ class TrackedAttrConfig(dict):
                 # and affected fields need to be rolled back.
                 pre_update[key] = pre_update_key
                 self._attr_update_hooks.get(key, TrackedAttrConfig._default_update_hook)(value)
-                print(f'after:\n\t{self}', end='\n\n')
         except Exception as e:
             # temporarily disable update hooks while rolling back values
-            print('setting temporary attr update hooks')
             _prev_attr_update_hooks = self._attr_update_hooks
             dict.__setattr__(self, '_attr_update_hooks', {})
             try:
                 for key, old_value in pre_update.items():
-                    print(f'===== resetting {key} to {old_value} =====')
-                    print(f'before:\n\t{self}')
                     self._setattr_helper_(key, old_value)
-                    print(f'after:\n\t{self}', end='\n\n')
             finally:
-                print('restoring attr update hooks')
                 dict.__setattr__(self, '_attr_update_hooks', _prev_attr_update_hooks)
                 raise e from None
         else:

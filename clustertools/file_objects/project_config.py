@@ -1,5 +1,7 @@
 from clustertools import CLUSTERTOOLS_CONFIG_DIR
 from clustertools.project.project import Project
+from clustertools.file_objects.config_update_hooks import (PROJECT_CONFIG_UPDATE_HOOKS,
+                                                           write_updated_config)
 from clustertools.file_objects.tracked_attr_config import TrackedAttrConfig
 from clustertools.file_objects.base_config import BaseConfig
 
@@ -14,6 +16,7 @@ class ProjectConfig(BaseConfig):
         remote_path = cluster.getenv('HOME').joinpath('.clustertools', project.name, 'project_config.ini')
         super().__init__(cluster=cluster, local_path=local_path, remote_path=remote_path)
         self._project = project
+        self._attr_update_hooks = PROJECT_CONFIG_UPDATE_HOOKS
 
     def _environ_update_hook(self):
         environ_str = BaseConfig._environ_to_str(self._config.environ)
@@ -27,6 +30,10 @@ class ProjectConfig(BaseConfig):
                 # parents=False, exist_ok=False just as a sanity check
                 # that ~/.clustertools exists already
                 self.local_path.parent.mkdir(parents=False, exist_ok=False)
+            # bind hooks to instance
+            for field, hook in self._attr_update_hooks.items():
+                self._attr_update_hooks[field] = hook(self)
+            write_updated_config = write_updated_config(self)
             self._configparser = self._cluster.config.create_project_config(self._project.name)
             self._config = self._parse_config()
         else:
