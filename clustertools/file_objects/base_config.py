@@ -2,7 +2,8 @@ from configparser import ConfigParser
 from typing import Dict, Optional, Union
 
 from clustertools.cluster import Cluster
-from clustertools.file_objects.config_hooks import write_updated_config
+from clustertools.file_objects.config_hooks import (BASE_CONFIG_UPDATE_HOOKS,
+                                                    write_updated_config)
 from clustertools.file_objects.tracked_attr_config import TrackedAttrConfig
 from clustertools.file_objects.synced_file import SyncedFile
 from clustertools.shared.object_monitors import MonitoredEnviron, MonitoredList
@@ -11,7 +12,7 @@ from clustertools.shared.typing import PathLike
 
 class BaseConfig(SyncedFile):
     # ADD DOCSTRING
-    
+
     @staticmethod
     def _environ_to_str(environ: MonitoredEnviron[str, str]) -> str:
         str_fmt = '\n'.join(' = '.join(item) for item in environ.items())
@@ -45,7 +46,7 @@ class BaseConfig(SyncedFile):
         super().__init__(cluster=cluster, local_path=local_path, remote_path=remote_path)
         self._environ_update_hook = None
         self._modules_update_hook = None
-        self._attr_update_hooks = dict()
+        self._attr_update_hooks = BASE_CONFIG_UPDATE_HOOKS
 
     def __getattr__(self, item):
         # makes TrackedAttrConfig methods and fields accessible directly

@@ -18,7 +18,7 @@ class GlobalConfig(BaseConfig):
         super().__init__(cluster=cluster,
                          local_path=global_config_path_local,
                          remote_path=remote_path)
-        self._attr_update_hooks = GLOBAL_CONFIG_UPDATE_HOOKS
+        self._attr_update_hooks.update(GLOBAL_CONFIG_UPDATE_HOOKS)
 
     def _environ_update_hook(self):
         environ_str = BaseConfig._environ_to_str(self._config.environ)

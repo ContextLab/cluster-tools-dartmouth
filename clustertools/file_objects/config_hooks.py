@@ -5,6 +5,7 @@ from clustertools.shared.helpers import bindable
 from clustertools.file_objects.base_config import BaseConfig
 from clustertools.file_objects.global_config import GlobalConfig
 from clustertools.file_objects.project_config import ProjectConfig
+from clustertools.shared.typing import validate_walltime, WallTimeStr
 
 
 ########################################################################
@@ -29,6 +30,14 @@ def write_updated_config(inst: BaseConfig, keys_newvals: Dict[str, Any]) -> None
         inst.write_config_file()
 
 
+@bindable
+def wall_time_update_hook(inst: BaseConfig, new_walltime: WallTimeStr) -> None:
+    validate_walltime(new_walltime)
+
+
+BASE_CONFIG_UPDATE_HOOKS = {'wall_time': wall_time_update_hook}
+
+
 ########################################################################
 #                         GLOBAL CONFIG HOOKS                          #
 ########################################################################
@@ -47,6 +56,14 @@ def executable_update_hook(inst: GlobalConfig, new_exe: str) -> None:
     inst._cluster.executable = new_exe
 
 
+
+
+GLOBAL_CONFIG_UPDATE_HOOKS = {
+    'project_dir': project_dir_update_hook,
+    'executable': executable_update_hook
+}
+
+
 ########################################################################
 #                         PROJECT CONFIG HOOKS                         #
 ########################################################################
@@ -60,5 +77,6 @@ def data_subdir_update_hook(inst: ProjectConfig, new_dir: str) -> None:
     pass
 
 
-GLOBAL_CONFIG_UPDATE_HOOKS = {}
-PROJECT_CONFIG_UPDATE_HOOKS = {}
+PROJECT_CONFIG_UPDATE_HOOKS = {
+    'data_subdir': data_subdir_update_hook
+}

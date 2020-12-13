@@ -23,7 +23,7 @@ class ProjectConfig(BaseConfig):
                          local_path=local_path,
                          remote_path=remote_path)
         self._project = project
-        self._attr_update_hooks = PROJECT_CONFIG_UPDATE_HOOKS
+        self._attr_update_hooks.update(PROJECT_CONFIG_UPDATE_HOOKS)
 
     def _environ_update_hook(self):
         environ_str = BaseConfig._environ_to_str(self._config.environ)
