@@ -1,7 +1,6 @@
-from typing import Callable, Dict, Literal, Optional, Union, Sequence
+from typing import Dict, Literal
 
 # TODO: pretty sure this is going to be a circular import...
-from clustertools.shared.typing import EnvMapping
 
 
 class PseudoEnviron:
@@ -15,7 +14,7 @@ class PseudoEnviron:
     #   - prepend `env -u SOMEVAR` to the command
     #   - prepend `env -i` to all commands and export full current_env
     #   - prepend an `unset` call to the full command
-    def __init__(self, initial_env: EnvMapping, custom_vars: EnvMapping):
+    def __init__(self, initial_env: Dict[str, str], custom_vars: Dict[str, str]):
         self._initial_env = initial_env
         self._current_env = initial_env.copy()
         self._current_env.update(custom_vars)
@@ -89,37 +88,3 @@ class PseudoEnviron:
     def reset_all(self) -> None:
         # ADD DOCSTRING
         self._current_env = self._initial_env
-
-
-class MonitoredEnviron(PseudoEnviron):
-    # ADD DOCSTRING
-
-    @staticmethod
-    def _default_update_hook():
-        pass
-
-    def __init__(
-            self,
-            initial_env: EnvMapping,
-            custom_vars: EnvMapping,
-            update_hook: Optional[Callable[[], None]] = None,
-    ):
-        # ADD DOCSTRING
-        super().__init__(initial_env=initial_env, custom_vars=custom_vars)
-        if update_hook is None:
-            self.update_hook = MonitoredEnviron._default_update_hook
-        else:
-            self.update_hook = update_hook
-
-    def __delitem__(self, key):
-        super().__delitem__(key=key)
-        self.update_hook()
-
-    def __setitem__(self, key, value):
-        super().__setitem__(key=key, value=value)
-        self.update_hook()
-
-    # noinspection PyPep8Naming
-    def update(self, E, **F):
-        super().update(E, **F)
-        self.update_hook()

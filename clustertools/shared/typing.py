@@ -21,5 +21,3 @@ NoneOrMore = Optional[OneOrMore]    # equivalent to Union[None, OneOrMore]
 MswDestBase = TypeVar('MswDestBase', BinaryIO, Path, str, TextIO)
 MswStdoutDest = Union[MswDestBase, type(sys.stdout), Literal['stdout']]
 MswStderrDest = Union[MswDestBase, type(sys.stderr), Literal['stderr']]
-
-EnvMapping = Dict[str, str]
