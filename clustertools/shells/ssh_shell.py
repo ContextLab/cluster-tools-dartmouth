@@ -24,7 +24,9 @@ class SshShellMixin:
     @property
     def cwd(self: BaseShell) -> PurePosixPath:
         if not self.connected:
-            raise SSHConnectionError("SSH connection must be open to access remote file system")
+            raise SSHConnectionError(
+                "SSH connection must be open to access remote file system"
+            )
         return self._cwd
 
     @cwd.setter
@@ -47,35 +49,40 @@ class SshShellMixin:
                     self._cwd = PurePosixPath(self.environ.get('HOME'))
                 else:
                     new_cwd = self.resolve_path(PurePosixPath(new_cwd), strict=True)
-                    # if not new_cwd.is_absolute():
-                    #     raise AttributeError('Working directory must be an absolute path.')
                     try:
                         if not self.shell.is_dir(new_cwd):
                             # new_cwd points to a file
                             raise NotADirectoryError(f"{new_cwd}: Not a directory")
-                    except FileNotFoundError as e:
+                    except FileNotFoundError:
                         # new_cwd doesn't exist
-                        raise FileNotFoundError(f"{new_cwd}: No such file or directory") from e
+                        raise FileNotFoundError(
+                            f"{new_cwd}: No such file or directory"
+                        ) from None
                     else:
                         self._cwd = new_cwd
             except:
                 raise
             else:
-                # same as cd'ing, old $PWD becomes $OLDPWD, new self.cwd becomes $PWD
+                # like when cd'ing: old $PWD becomes $OLDPWD, new
+                # self.cwd becomes $PWD
                 self.putenv('OLDPWD', old_pwd)
                 self.putenv('PWD', new_cwd)
 
     @property
     def environ(self) -> PseudoEnviron:
         if not self.connected:
-            raise SSHConnectionError("SSH connection must be open to read remote environment")
+            raise SSHConnectionError(
+                "SSH connection must be open to access remote environment"
+            )
         return self._environ
 
     @property
     def executable(self) -> str:
         # ADD DOCSTRING
         if not self.connected:
-            raise SSHConnectionError("SSH connection must be open to determine remote shell")
+            raise SSHConnectionError(
+                "SSH connection must be open to determine remote shell"
+            )
         return self._executable
 
     @executable.setter

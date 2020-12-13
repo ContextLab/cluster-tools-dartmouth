@@ -72,18 +72,23 @@ class PseudoEnviron:
         if key in self._initial_env:
             self._current_env[key] = self._initial_env[key]
         elif if_custom == 'raise':
-            raise KeyError(f"Environment variable '{key}' was not set "
-                           f"before shell was initialized")
+            raise KeyError(
+                f"Environment variable '{key}' was not set before shell was "
+                "initialized"
+            )
         elif key not in self._current_env:
             # throw error regardless of `if_custom`
-            raise KeyError(f"'{key}' does not exist in either the "
-                           f"current or initial environment")
+            raise KeyError(
+                f"'{key}' does not exist in either the current or initial "
+                f"environment"
+            )
         elif if_custom == 'remove':
             self._current_env.pop(key)
         elif if_custom != 'keep':
-            raise ValueError(f"Invalid option '{if_custom}' for "
-                             "'if_custom'. Must be one of: {'remove', "
-                             "'keep', 'raise'}")
+            raise ValueError(
+                f"Invalid option '{if_custom}' for 'if_custom'. Must be one "
+                "of: {'remove', 'keep', 'raise'}"
+            )
 
     def reset_all(self) -> None:
         # ADD DOCSTRING

@@ -6,9 +6,6 @@ from typing import overload
 from clustertools.shared.typing import PathLike
 
 
-# TODO: implement versions of expanduser and expandvars that
-#  (optionally?) use PseudoEnviron
-
 @overload
 def cleanpath(path: str) -> str:
     ...

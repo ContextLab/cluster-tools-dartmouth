@@ -19,6 +19,25 @@ from clustertools.shared.typing import (MswStderrDest,
 class RemoteProcess:
     # ADD DOCSTRING
     # TODO: this class could use some refactoring...
+
+    @staticmethod
+    def _setup_user_callback(
+            cb: Optional[Callable[..., Any]],
+            cb_args: Optional[Tuple],
+            cb_kwargs: Optional[Dict[str, Any]]
+    ) -> Callable[[], Any]:
+        if cb_args or cb_kwargs:
+            if cb is None:
+                raise ValueError("Callback arguments passed without callable")
+            cb_args = cb_args or tuple()
+            cb_kwargs = cb_kwargs or dict()
+            return functools.partial(cb, *cb_args, **cb_kwargs)
+        elif cb:
+            return cb
+        else:
+            def _placeholder(): pass
+            return _placeholder
+
     def __init__(
             self,
             command: OneOrMore[str],
@@ -47,9 +66,9 @@ class RemoteProcess:
         self._wait = wait
         self._allow_error = allow_error
         self._use_pty = use_pty
-        self._callback = self._setup_user_callback(callback,
-                                                   callback_args,
-                                                   callback_kwargs)
+        self._callback = RemoteProcess._setup_user_callback(callback,
+                                                            callback_args,
+                                                            callback_kwargs)
         # attributes set later
         self.started = False
         self.completed = False
@@ -62,7 +81,7 @@ class RemoteProcess:
         self.stdout = MultiStreamWrapper(stdout, encoding=stream_encoding)
         self.stderr = MultiStreamWrapper(stderr, encoding=stream_encoding)
 
-    def _process_complete_callback(self):
+    def _process_complete_callback(self) -> None:
         # returns once process is complete and sets self._proc._result
         self._proc.wait_for_result()
         try:
@@ -77,19 +96,6 @@ class RemoteProcess:
                 self.callback_result = self._callback()
             elif not self._allow_error:
                 raise self._proc._result.to_error()
-
-    def _setup_user_callback(self, cb, cb_args, cb_kwargs):
-        if cb_args or cb_kwargs:
-            if cb is None:
-                raise ValueError("Callback arguments passed without callable")
-            cb_args = cb_args or tuple()
-            cb_kwargs = cb_kwargs or dict()
-            return functools.partial(cb, *cb_args, **cb_kwargs)
-        elif cb:
-            return cb
-        else:
-            def _placeholder(): pass
-            return _placeholder
 
     def run(self):
         self._proc = self._ssh_shell.spawn(command=self._command,
@@ -113,17 +119,19 @@ class RemoteProcess:
 
         return self
 
-    def run_callback(self, overwrite_result=False):
+    def run_callback(self, overwrite_result: bool = False) -> Any:
         if not self.started:
-            raise SSHProcessError("The processes has not been started. "
-                                  "Use 'RemoteProcess.run()' to start the process.")
+            raise SSHProcessError(
+                "The processes has not been started. Use 'remote_process.run()' "
+                "to start the process."
+            )
         elif not self.completed:
-            raise SSHProcessError("Can't run callback until the process is "
-                                  "completed. You can signal the process to "
-                                  "stop using one of:\n"
-                                  "'RemoteProcess.interrupt()', "
-                                  "'RemoteProcess.terminate()', "
-                                  "'RemoteProcess.kill()'")
+            raise SSHProcessError(
+                "Can't run callback until the process is completed. You can "
+                "signal the process to stop using one of:\n"
+                "'remote_process.interrupt()', 'remote_process.terminate()', "
+                "'remote_process.kill()'"
+            )
         new_result = self._callback()
         if self.callback_result is None or overwrite_result:
             self.callback_result = new_result
@@ -134,8 +142,10 @@ class RemoteProcess:
         if self.completed:
             raise SSHProcessError("Unable to send input to a completed process")
         elif not self.started:
-            raise SSHProcessError("The processes has not been started. "
-                                  "Use 'RemoteProcess.run()' to start the process.")
+            raise SSHProcessError(
+                "The processes has not been started. Use 'remote_process.run()' "
+                "to start the process."
+            )
 
         self._proc.stdin_write(value=value)
 
@@ -143,19 +153,21 @@ class RemoteProcess:
         if self.completed:
             raise SSHProcessError("Unable to send signal to a completed process")
         elif not self.started:
-            raise SSHProcessError("The processes has not been started. "
-                                  "Use 'RemoteProcess.run()' to start the process.")
+            raise SSHProcessError(
+                "The processes has not been started. Use 'remote_process.run()' "
+                "to start the process."
+            )
 
         self._proc.send_signal(signal=signal)
 
-    def hangup(self):
+    def hangup(self) -> None:
         self.send_signal('SIGHUP')
 
-    def interrupt(self):
+    def interrupt(self) -> None:
         self.send_signal('SIGINT')
 
-    def kill(self):
+    def kill(self) -> None:
         self.send_signal('SIGKILL')
 
-    def terminate(self):
+    def terminate(self) -> None:
         self.send_signal('SIGTERM')

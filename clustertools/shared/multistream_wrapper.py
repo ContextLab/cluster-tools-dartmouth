@@ -1,5 +1,7 @@
 import sys
 from io import BytesIO, StringIO
+# using PurePath here rather than Path + PurePosixPath as in other places
+# so that isinstance checks pass for local & remote shells on any OS
 from pathlib import PurePath
 from typing import Optional, Sequence, Union
 
@@ -22,7 +24,6 @@ class MultiStreamWrapper:
                 not isinstance(destinations, Sequence)
         ):
             destinations = [destinations]
-
         # set in-memory IO class & kwargs passed to built-in `open()`
         # for path-like `destinations`
         if encoding is None:
@@ -33,7 +34,6 @@ class MultiStreamWrapper:
             # string content
             memory_stream_class = StringIO
             file_io_kwargs = {'mode': 'w', 'buffering': 1}
-
         self.closed = False
         # holds content of self.memory_stream after closing for persisting access
         self.final = None
@@ -41,11 +41,11 @@ class MultiStreamWrapper:
         self.streams = list()
         # minimum attrs/methods necessary for IOBase subclass or
         # user-defined stream to be supported
-        min_required_attrs = ('write', 'close', 'closed')
+        min_required_attrs = {'write', 'close', 'closed'}
         for s in destinations:
             if (
-                    s in (sys.stdout, sys.stderr) or
-                    all(hasattr(s, a) for a in min_required_attrs)
+                    s in {sys.stdout, sys.stderr}
+                    or all(hasattr(s, a) for a in min_required_attrs)
             ):
                 # stream is valid as-is
                 pass
@@ -62,9 +62,7 @@ class MultiStreamWrapper:
             else:
                 self.close()
                 raise ValueError(f"Invalid stream type: {type(s)}")
-
             self.streams.append(s)
-
         self._all_streams = [self.memory_stream] + self.streams
 
     def __repr__(self):
@@ -85,9 +83,8 @@ class MultiStreamWrapper:
     def close(self):
         self.final = self.memory_stream.getvalue()
         for stream in self._all_streams:
-            if stream not in (sys.stdout, sys.stderr):
+            if stream not in {sys.stdout, sys.stderr}:
                 stream.close()
-
         self.closed = True
 
     def write(self, data):

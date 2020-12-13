@@ -5,6 +5,9 @@ from clustertools.shared.environ import PseudoEnviron
 
 class MonitoredEnviron(PseudoEnviron):
     # ADD DOCSTRING
+    # hooks into all mutating list attributes and disables some
+    # irrelevant ones (e.g., ability to mulitiply list by scalar to
+    # duplicate items)
 
     @staticmethod
     def _default_update_hook():
@@ -33,6 +36,8 @@ class MonitoredEnviron(PseudoEnviron):
 
     # noinspection PyPep8Naming
     def update(self, E, **F) -> None:
+        # ADD DOCSTRING
+        # params named to match dict.update() signature
         super().update(E, **F)
         self.update_hook()
 
@@ -44,7 +49,11 @@ class MonitoredList(list):
     def _default_update_hook():
         pass
 
-    def __init__(self, list_: List[Any], update_hook: Optional[Callable[..., None]] = None):
+    def __init__(
+            self,
+            list_: Iterable[Any],
+            update_hook: Optional[Callable[..., None]] = None
+    ) -> None:
         super().__init__(list_)
         self._update_hook = update_hook
 

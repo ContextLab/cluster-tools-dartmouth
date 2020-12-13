@@ -38,7 +38,7 @@ class Cluster(BaseShell):
                                       "not yet fully supported")
         self.config = GlobalConfig(cluster=self)
         cwd = shell_kwargs.pop('cwd', None)
-        if cwd is None and self.config.general.start_in_project_dir:
+        if cwd is None and self.config.general.launch_in_project_dir:
             cwd = self.config.general.project_dir
         executable = shell_kwargs.pop('executable', self.config.general.executable)
         env_additions = shell_kwargs.pop('env_additions', None)
@@ -120,13 +120,13 @@ class Cluster(BaseShell):
         elif self.project is not None:
             raise ClusterToolsProjectError(
                 "Cannot create a project when one is already loaded. Use "
-                "'Cluster.unload_project()' to unload the current project "
+                "'cluster.unload_project()' to unload the current project "
                 "before creating a new one."
             )
         elif name in self.all_projects:
             raise ClusterToolsProjectError(
                 f"Project '{name}' already exists. Use "
-                f"Cluster.load_project('{name}') to load its previous state."
+                f"cluster.load_project('{name}') to load its previous state."
             )
         self.project = Project(name=name, cluster=self, **kwargs)
         self._all_projects = tuple(list(self._all_projects) + [self.project.name])
@@ -140,7 +140,7 @@ class Cluster(BaseShell):
         elif self.project is not None:
             raise ClusterToolsProjectError(
                 f"Project '{self.project.name}' is already loaded. Use "
-                "'Cluster.unload_project()' to unload the current project "
+                "'cluster.unload_project()' to unload the current project "
                 "before loading a new one"
             )
         self.project = Project.load(name=name, cluster=self)
@@ -163,13 +163,13 @@ class Cluster(BaseShell):
                 yes = True
         elif yes is None:
             yes = self.config.general.confirm_project_deletion
-        if self.project.name == name:
+        if self.project is not None and self.project.name == name:
             if force:
                 self.unload_project()
             else:
                 raise ClusterToolsProjectError(
                     f"Project '{self.project.name}' is currently loaded. Use "
-                    "'Cluster.unload_project()' to unload the project before "
+                    "'cluster.unload_project()' to unload the project before "
                     "deleting (or pass 'force=True')"
                 )
         # check if project has running jobs
@@ -218,6 +218,10 @@ class Cluster(BaseShell):
     #                     JOB MONITORING                     #
     ##########################################################
     def monitor(self):
+        pass
+
+    def killthemall(self):
+        # Hi @Tudor :)
         pass
 
     ##########################################################

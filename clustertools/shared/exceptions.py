@@ -6,7 +6,7 @@ class ClusterToolsError(Exception):
 
 
 class SSHConnectionError(ClusterToolsError):
-    def __init__(self, message: Optional[str]):
+    def __init__(self, message: str = ''):
         super().__init__(message)
         self.message = message
 
