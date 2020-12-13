@@ -5,7 +5,7 @@ from typing import Optional
 from clustertools import CLUSTERTOOLS_CONFIG_DIR, CLUSTERTOOLS_TEMPLATES_DIR
 from clustertools.cluster import Cluster
 from clustertools.file_objects.base_config import BaseConfig
-from clustertools.file_objects.config_update_hooks import GLOBAL_CONFIG_UPDATE_HOOKS
+from clustertools.file_objects.config_hooks import GLOBAL_CONFIG_UPDATE_HOOKS
 from clustertools.shared.typing import PathLike
 
 
@@ -20,6 +20,13 @@ class GlobalConfig(BaseConfig):
                          remote_path=remote_path)
         self._attr_update_hooks = GLOBAL_CONFIG_UPDATE_HOOKS
 
+    def _environ_update_hook(self):
+        environ_str = BaseConfig._environ_to_str(self._config.environ)
+        self._configparser.set('project_defaults.runtime_environment',
+                               'environ',
+                               environ_str)
+        self.write_config_file()
+
     def _init_local(self):
         if not self.local_path.is_file():
             if not CLUSTERTOOLS_CONFIG_DIR.is_dir():
@@ -33,6 +40,13 @@ class GlobalConfig(BaseConfig):
             self._config.login.project_dir = self._cluster.getenv('HOME', default='$HOME')
         super()._init_remote()
 
+    def _modules_update_hook(self):
+        modules_str = ', '.join(self._config.project_defaults.runtime_environment.modules)
+        self._configparser.set('project_defaults.runtime_environment',
+                               'modules',
+                               modules_str)
+        self.write_config_file()
+
     def create_project_config(self, project_name: str) -> ConfigParser:
         # ADD DOCSTRING
         project_parser = ConfigParser(strict=True)
@@ -43,7 +57,8 @@ class GlobalConfig(BaseConfig):
         project_parser['monitoring'] = self._configparser['project_defaults.monitoring']
         if project_parser.get('general', 'job_basename') == 'INFER':
             project_parser.set('general', 'job_basename', project_name)
-        project_config_local_path = CLUSTERTOOLS_CONFIG_DIR.joinpath(project_name, 'project_config.ini')
+        project_config_local_path = CLUSTERTOOLS_CONFIG_DIR.joinpath(project_name,
+                                                                     'project_config.ini')
         with project_config_local_path.open('w') as f:
             project_parser.write(f, space_around_delimiters=True)
         return project_parser

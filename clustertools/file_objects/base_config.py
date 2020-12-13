@@ -2,30 +2,35 @@ from configparser import ConfigParser
 from typing import Dict, Optional, Union
 
 from clustertools.cluster import Cluster
-from clustertools.file_objects.config_update_hooks import write_updated_config
+from clustertools.file_objects.config_hooks import write_updated_config
 from clustertools.file_objects.tracked_attr_config import TrackedAttrConfig
 from clustertools.file_objects.synced_file import SyncedFile
-from clustertools.shared.environ import MonitoredEnviron
+from clustertools.shared.object_monitors import MonitoredEnviron, MonitoredList
 from clustertools.shared.typing import PathLike
 
 
 class BaseConfig(SyncedFile):
     # ADD DOCSTRING
     @staticmethod
-    def _environ_to_str(environ: Union[MonitoredEnviron, Dict[str, str]]) -> str:
+    def _environ_to_str(environ: MonitoredEnviron[str, str]) -> str:
         str_fmt = '\n'.join(' = '.join(item) for item in environ.items())
         if str_fmt != '':
             str_fmt = '\n' + str_fmt
         return str_fmt
 
     @staticmethod
-    def _type_to_str(key: str, value: Union[str, bool, int, TrackedAttrConfig]) -> str:
+    def _type_to_str(
+            key: str,
+            value: Union[str, bool, int, MonitoredEnviron[str, str], MonitoredList[str]]
+    ) -> str:
         if value is True or value is False:
             return str(value).lower()
         elif isinstance(value, int):
             return str(value)
         elif key == 'environ':
             return BaseConfig._environ_to_str(value)
+        elif key == 'modules':
+            return ', '.join(value)
         else:
             return value
 
@@ -38,6 +43,7 @@ class BaseConfig(SyncedFile):
         # ADD DOCSTRING
         super().__init__(cluster=cluster, local_path=local_path, remote_path=remote_path)
         self._environ_update_hook = None
+        self._modules_update_hook = None
         self._attr_update_hooks = dict()
 
     def __getattr__(self, item):
@@ -73,6 +79,7 @@ class BaseConfig(SyncedFile):
         # NOTE: currently super()._init_local() just 'pass'es. If that
         # changes, this should call it.
         # bind hooks to config object instance
+        global write_updated_config
         for field, hook in self._attr_update_hooks.items():
             self._attr_update_hooks[field] = hook(self)
         write_updated_config = write_updated_config(self)
@@ -109,22 +116,33 @@ class BaseConfig(SyncedFile):
                                  attr_update_hooks=self._attr_update_hooks,
                                  common_update_hook=write_updated_config)
 
-    def _str_to_environ(self, environ_str: str) -> MonitoredEnviron:
+    def _str_to_environ(self, environ_str: str) -> MonitoredEnviron[str, str]:
         keys_vals = map(lambda x: x.split('='), environ_str.strip().splitlines())
         env_dict = {k.strip(): v.strip() for k, v in keys_vals}
         return MonitoredEnviron(initial_env=dict(),
                                 custom_vars=env_dict,
                                 update_hook=self._environ_update_hook)
 
-    def _str_to_type(self, key: str, value: str) -> Union[str, bool, int, MonitoredEnviron]:
+    def _str_to_list(self, modules_str: str) -> MonitoredList[str]:
+        modules_list = [m.strip() for m in modules_str.strip().split(',')]
+        return MonitoredList(modules_list, update_hook=self._modules_update_hook)
+
+    def _str_to_type(
+            self,
+            key: str,
+            value: str
+    ) -> Union[str, bool, int, MonitoredEnviron[str, str], MonitoredList[str]]:
         if value == 'true':
             return True
         elif value == 'false':
             return False
         elif value.isdigit():
             return int(value)
+        # two special cases
         elif key == 'environ':
             return self._str_to_environ(value)
+        elif key == 'modules':
+            return self._str_to_list(value)
         else:
             return value
 

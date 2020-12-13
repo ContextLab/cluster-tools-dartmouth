@@ -1,7 +1,9 @@
+from pathlib import PurePosixPath
+
 from clustertools import CLUSTERTOOLS_CONFIG_DIR
 from clustertools.project.project import Project
-from clustertools.file_objects.config_update_hooks import (PROJECT_CONFIG_UPDATE_HOOKS,
-                                                           write_updated_config)
+from clustertools.file_objects.config_hooks import (PROJECT_CONFIG_UPDATE_HOOKS,
+                                                    write_updated_config)
 from clustertools.file_objects.tracked_attr_config import TrackedAttrConfig
 from clustertools.file_objects.base_config import BaseConfig
 
@@ -12,9 +14,14 @@ class ProjectConfig(BaseConfig):
         # ADD DOCSTRING
         # currently, cluster.connected is guaranteed to be True at this point
         cluster = project._cluster
-        local_path = CLUSTERTOOLS_CONFIG_DIR.joinpath(project.name, 'project_config.ini')
-        remote_path = cluster.getenv('HOME').joinpath('.clustertools', project.name, 'project_config.ini')
-        super().__init__(cluster=cluster, local_path=local_path, remote_path=remote_path)
+        local_path = CLUSTERTOOLS_CONFIG_DIR.joinpath(project.name,
+                                                      'project_config.ini')
+        remote_home = PurePosixPath(cluster.getenv('HOME'))
+        remote_path = remote_home.joinpath('.clustertools', project.name,
+                                           'project_config.ini')
+        super().__init__(cluster=cluster,
+                         local_path=local_path,
+                         remote_path=remote_path)
         self._project = project
         self._attr_update_hooks = PROJECT_CONFIG_UPDATE_HOOKS
 
@@ -23,8 +30,8 @@ class ProjectConfig(BaseConfig):
         self._configparser.set('runtime_environment', 'environ', environ_str)
         self.write_config_file()
 
-
     def _init_local(self):
+        global write_updated_config
         if not self.local_path.is_file():
             if not self.local_path.parent.is_dir():
                 # parents=False, exist_ok=False just as a sanity check
@@ -40,6 +47,11 @@ class ProjectConfig(BaseConfig):
             # runs self._load_configparser() and self._parse_config() to
             # set self._configparser and self._config
             super()._init_local()
+
+    def _modules_update_hook(self):
+        modules_str = ', '.join(self._config.project_defaults.runtime_environment.modules)
+        self._configparser.set('runtime_environment', 'modules', modules_str)
+        self.write_config_file()
 
     def _parse_config(self) -> TrackedAttrConfig:
         # priority order for environment variables goes
@@ -65,4 +77,4 @@ class ProjectConfig(BaseConfig):
             # TODO: additional sources to update this with?
             environ_str = BaseConfig._environ_to_str(environ_vars)
             self._configparser.set('runtime_environment', 'environ', environ_str)
-        super()._parse_config()
+        return super()._parse_config()
