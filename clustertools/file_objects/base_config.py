@@ -54,8 +54,9 @@ class BaseConfig(SyncedFile):
         try:
             return getattr(self._config, item)
         except KeyError:
-            raise AttributeError(f"'{self.__class__.__name__}' as no "
-                                 f"attribute '{item}'") from None
+            raise AttributeError(
+                f"'{self.__class__.__name__}' as no attribute '{item}'"
+            ) from None
 
     def __getitem__(self, item):
         # makes config options/values accessible via my_config[option]

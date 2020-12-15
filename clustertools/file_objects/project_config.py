@@ -19,11 +19,12 @@ class ProjectConfig(BaseConfig):
         remote_home = PurePosixPath(cluster.getenv('HOME'))
         remote_path = remote_home.joinpath('.clustertools', project.name,
                                            'project_config.ini')
+        # needs to happen before _init_local is called
+        self._attr_update_hooks.update(PROJECT_CONFIG_UPDATE_HOOKS)
+        self._project = project
         super().__init__(cluster=cluster,
                          local_path=local_path,
                          remote_path=remote_path)
-        self._project = project
-        self._attr_update_hooks.update(PROJECT_CONFIG_UPDATE_HOOKS)
 
     def _environ_update_hook(self):
         environ_str = BaseConfig._environ_to_str(self._config.environ)

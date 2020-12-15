@@ -75,16 +75,6 @@ GLOBAL_CONFIG_UPDATE_HOOKS = {
 ########################################################################
 #                         PROJECT CONFIG HOOKS                         #
 ########################################################################
-@bindable
-def data_subdir_update_hook(inst: ProjectConfig, new_dir: str) -> None:
-    # TODO: write me
-    # require that it be a subdirectory (not is_absolute is probably the
-    # closest possible check)
-    # if self._project.doesnt_have_jobs_running:
-        # inst._cluster.rename_the_data_dir
-    pass
 
 
-PROJECT_CONFIG_UPDATE_HOOKS = {
-    'data_subdir': data_subdir_update_hook
-}
+PROJECT_CONFIG_UPDATE_HOOKS = {}
