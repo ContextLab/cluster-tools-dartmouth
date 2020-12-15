@@ -5,7 +5,7 @@ from clustertools.shared.helpers import bindable
 from clustertools.file_objects.base_config import BaseConfig
 from clustertools.file_objects.global_config import GlobalConfig
 from clustertools.file_objects.project_config import ProjectConfig
-from clustertools.shared.typing import validate_walltime, WallTimeStr
+from clustertools.shared.typing import EmailAddress, validate_email, validate_walltime, WallTimeStr
 
 
 ########################################################################
@@ -31,11 +31,19 @@ def write_updated_config(inst: BaseConfig, keys_newvals: Dict[str, Any]) -> None
 
 
 @bindable
+def email_update_hook(inst: BaseConfig, new_email: EmailAddress) -> None:
+    validate_email(new_email)
+
+
+@bindable
 def wall_time_update_hook(inst: BaseConfig, new_walltime: WallTimeStr) -> None:
     validate_walltime(new_walltime)
 
 
-BASE_CONFIG_UPDATE_HOOKS = {'wall_time': wall_time_update_hook}
+BASE_CONFIG_UPDATE_HOOKS = {
+    'email': email_update_hook,
+    'wall_time': wall_time_update_hook
+}
 
 
 ########################################################################
