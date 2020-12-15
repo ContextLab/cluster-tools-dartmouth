@@ -52,7 +52,7 @@ class GlobalConfig(BaseConfig):
         project_parser = ConfigParser(strict=True)
         project_parser['general'] = self._configparser['project_defaults']
         project_parser['runtime_environment'] = self._configparser['project_defaults.runtime_environment']
-        project_parser['PBS_params'] = self._configparser['project_defaults.PBS_params']
+        project_parser['pbs_params'] = self._configparser['project_defaults.pbs_params']
         project_parser['notifications'] = self._configparser['project_defaults.notifications']
         project_parser['monitoring'] = self._configparser['project_defaults.monitoring']
         if project_parser.get('general', 'job_basename') == 'INFER':
