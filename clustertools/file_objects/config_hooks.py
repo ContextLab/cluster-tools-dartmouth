@@ -1,3 +1,4 @@
+import re
 from typing import Any, Dict
 
 from clustertools.shared.helpers import bindable
@@ -31,6 +32,18 @@ def write_updated_config(inst: BaseConfig, keys_newvals: Dict[str, Any]) -> None
 
 
 @bindable
+def job_basename_update_hook(inst: BaseConfig, new_basename: str):
+    if len(new_basename) > 15:
+        raise ValueError("Job names may be up to 15 characters in length")
+    if not new_basename[0].isalpha():
+        raise ValueError(
+            "Job names must start with an alphabetic character ([a-zA-Z])"
+        )
+    if re.search('\s', new_basename) is not None:
+        raise ValueError("Job names may not contain whitespace")
+
+
+@bindable
 def email_update_hook(inst: BaseConfig, new_email: EmailAddress) -> None:
     validate_email(new_email)
 
@@ -41,6 +54,7 @@ def wall_time_update_hook(inst: BaseConfig, new_walltime: WallTimeStr) -> None:
 
 
 BASE_CONFIG_UPDATE_HOOKS = {
+    'job_basename': job_basename_update_hook,
     'email': email_update_hook,
     'wall_time': wall_time_update_hook
 }

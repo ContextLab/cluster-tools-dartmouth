@@ -502,15 +502,3 @@ class SimpleDefaultDict(dict):
 
     def __missing__(self, key):
         return self.default(key)
-
-
-
-
-
-
-class SimpleDefaultDict(dict):
-    """
-    Similar to collections.defaultdict, but doesn't add missing keys
-    """
-    def __missing__(self, key: Any):
-        return '?'
