@@ -43,9 +43,9 @@ def job_basename_update_hook(inst: BaseConfig, new_basename: str):
         raise ValueError("Job names may not contain whitespace")
 
 
-@bindable
-def email_update_hook(inst: BaseConfig, new_email: EmailAddress) -> None:
-    validate_email(new_email)
+# @bindable
+# def email_update_hook(inst: BaseConfig, new_email: EmailAddress) -> None:
+#     validate_email(new_email)
 
 
 @bindable
@@ -55,7 +55,7 @@ def wall_time_update_hook(inst: BaseConfig, new_walltime: WallTimeStr) -> None:
 
 BASE_CONFIG_UPDATE_HOOKS = {
     'job_basename': job_basename_update_hook,
-    'email': email_update_hook,
+    # 'email': email_update_hook,
     'wall_time': wall_time_update_hook
 }
 
