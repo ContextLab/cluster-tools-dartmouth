@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import re
-from typing import Any, Dict
+from typing import Any, Dict, TYPE_CHECKING
 
 from clustertools.shared.helpers import bindable
-# TODO: this is going to be circular...
-from clustertools.file_objects.base_config import BaseConfig
-from clustertools.file_objects.global_config import GlobalConfig
-from clustertools.file_objects.project_config import ProjectConfig
-from clustertools.shared.typing import EmailAddress, validate_email, validate_walltime, WallTimeStr
+
+if TYPE_CHECKING:
+    from clustertools.file_objects.base_config import BaseConfig
+    from clustertools.file_objects.global_config import GlobalConfig
+    from clustertools.shared.typing import validate_walltime, WallTimeStr
 
 
 ########################################################################

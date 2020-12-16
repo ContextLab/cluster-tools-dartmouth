@@ -1,18 +1,21 @@
+from __future__ import annotations
+
 import getpass
 import os
 import warnings
 from pathlib import PurePosixPath
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 import spurplus
-from paramiko import SFTPAttributes
 from spur.results import RunProcessError
 
 from clustertools.shared.environ import PseudoEnviron
 from clustertools.shared.exceptions import SSHConnectionError
-from clustertools.shared.typing import (PathLike)
 
-from clustertools.shells.base_shell import BaseShell
+if TYPE_CHECKING:
+    from paramiko import SFTPAttributes
+    from clustertools.shared.typing import PathLike
+    from clustertools.shells.base_shell import BaseShell
 
 
 ## noinspection PyAttributeOutsideInit,PyUnresolvedReferences

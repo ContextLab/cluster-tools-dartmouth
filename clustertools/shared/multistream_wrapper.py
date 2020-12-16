@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import sys
 from io import BytesIO, StringIO
 # using PurePath here rather than Path + PurePosixPath as in other places
 # so that isinstance checks pass for local & remote shells on any OS
 from pathlib import PurePath
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence, TYPE_CHECKING, Union
 
-from clustertools.shared.typing import MswStderrDest, MswStdoutDest, OneOrMore
+if TYPE_CHECKING:
+    from clustertools.shared.typing import MswStderrDest, MswStdoutDest, OneOrMore
 
 
 class MultiStreamWrapper:

@@ -1,17 +1,20 @@
+from __future__ import annotations
+
 import functools
 from threading import Thread
-from typing import Any, Callable, Dict, Optional, Tuple, Union
-
-import spur
-import spurplus
+from typing import Any, Callable, Dict, Optional, Tuple, TYPE_CHECKING, Union
 
 from clustertools.shared.exceptions import SSHProcessError
 from clustertools.shared.multistream_wrapper import MultiStreamWrapper
-from clustertools.shared.typing import (MswStderrDest,
-                                        MswStdoutDest,
-                                        NoneOrMore,
-                                        OneOrMore,
-                                        PathLike)
+
+if TYPE_CHECKING:
+    import spur
+    import spurplus
+    from clustertools.shared.typing import (MswStderrDest,
+                                            MswStdoutDest,
+                                            NoneOrMore,
+                                            OneOrMore,
+                                            PathLike)
 
 
 # TODO: ensure that all_error=False raises exception in main thread when wait=False

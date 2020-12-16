@@ -1,13 +1,17 @@
-from configparser import ConfigParser
-from typing import Dict, Optional, Union
+from __future__ import annotations
 
-from clustertools.cluster import Cluster
+from configparser import ConfigParser
+from typing import Dict, Optional, TYPE_CHECKING, Union
+
 from clustertools.file_objects.config_hooks import (BASE_CONFIG_UPDATE_HOOKS,
                                                     write_updated_config)
 from clustertools.file_objects.tracked_attr_config import TrackedAttrConfig
 from clustertools.file_objects.synced_file import SyncedFile
 from clustertools.shared.object_monitors import MonitoredEnviron, MonitoredList
-from clustertools.shared.typing import PathLike
+
+if TYPE_CHECKING:
+    from clustertools.cluster import Cluster
+    from clustertools.shared.typing import PathLike
 
 
 class BaseConfig(SyncedFile):

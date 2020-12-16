@@ -1,9 +1,13 @@
-from typing import Optional
+from __future__ import annotations
 
-from clustertools.cluster import Cluster
+from typing import Optional, TYPE_CHECKING
+
 from clustertools.file_objects.synced_file import SyncedFile
-from clustertools.project.project import Project
-from clustertools.shared.typing import PathLike
+
+if TYPE_CHECKING:
+    from clustertools.cluster import Cluster
+    from clustertools.project.project import Project
+    from clustertools.shared.typing import PathLike
 
 
 class ProjectScript(SyncedFile):

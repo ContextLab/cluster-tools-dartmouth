@@ -1,19 +1,24 @@
+from __future__ import annotations
+
 import getpass
 import os
 import socket
 from pathlib import Path
-from typing import Callable, Optional, Union, Tuple, Dict
+from typing import Callable, Dict, Optional, Union, Tuple, TYPE_CHECKING
 
 import spur
 
-from clustertools.shells import LocalShellMixin, SshShellMixin
+from clustertools.shells.local_shell import LocalShellMixin
+from clustertools.shells.ssh_shell import SshShellMixin
 from clustertools.shared.remote_process import RemoteProcess
-from clustertools.shared.typing import (MswStderrDest,
-                                        MswStdoutDest,
-                                        NoneOrMore,
-                                        OneOrMore,
-                                        PathLike,
-                                        Sequence)
+
+if TYPE_CHECKING:
+    from clustertools.shared.typing import (MswStderrDest,
+                                            MswStdoutDest,
+                                            NoneOrMore,
+                                            OneOrMore,
+                                            PathLike,
+                                            Sequence)
 
 
 ## noinspection PyAttributeOutsideInit,PyUnresolvedReferences

@@ -1,22 +1,32 @@
+from __future__ import annotations
+
 import itertools
 from pathlib import Path, PurePosixPath
 from string import Template
-from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
+from typing import (Any,
+                    Dict,
+                    List,
+                    Literal,
+                    Optional,
+                    Sequence,
+                    Tuple,
+                    TYPE_CHECKING,
+                    Union)
 
-from clustertools.cluster import Cluster
 from clustertools.file_objects.project_config import ProjectConfig
 from clustertools.file_objects.script import ProjectScript
-from clustertools.project.job import Job, JobList
+from clustertools.project.job import JobList
 from clustertools.shared.exceptions import ProjectConfigurationError
-from clustertools.shared.object_monitors import MonitoredEnviron, MonitoredList
-from clustertools.shared.typing import PathLike, WallTimeStr
 from clustertools.templates.job_wrapper import (ENV_ACTIVATE_COMMAND,
                                                 ENV_DEACTIVATE_COMMAND,
-                                                JOB_SUFFIX,
                                                 MODULE_LOAD_COMMAND,
-                                                USER_HOLD_DIRECTIVE,
                                                 VAR_EXPORT_DIRECTIVE,
                                                 WRAPPER_TEMPLATE)
+
+if TYPE_CHECKING:
+    from clustertools.cluster import Cluster
+    from clustertools.shared.object_monitors import MonitoredEnviron, MonitoredList
+    from clustertools.shared.typing import PathLike, WallTimeStr
 
 
 job_params_types = Union[Sequence[Any], Sequence[Sequence[Any]]]

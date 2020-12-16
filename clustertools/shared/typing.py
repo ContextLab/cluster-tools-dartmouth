@@ -1,4 +1,3 @@
-import re
 import time
 from pathlib import Path, PurePosixPath
 import sys
@@ -22,8 +21,8 @@ NoneOrMore = Optional[OneOrMore]    # equivalent to Union[None, OneOrMore]
 
 
 MswDestBase = TypeVar('MswDestBase', BinaryIO, Path, str, TextIO)
-MswStdoutDest = Union[MswDestBase, Type[sys.stdout], Literal['stdout']]
-MswStderrDest = Union[MswDestBase, Type[sys.stderr], Literal['stderr']]
+MswStdoutDest = Union[MswDestBase, Type[type(sys.stdout)], Literal['stdout']]
+MswStderrDest = Union[MswDestBase, Type[type(sys.stderr)], Literal['stderr']]
 
 
 WallTimeStr = NewType('WallTimeStr', str)

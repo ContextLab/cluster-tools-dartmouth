@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import hashlib
 from pathlib import Path, PurePosixPath
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from clustertools.cluster import Cluster
 from clustertools.shared.exceptions import SSHConnectionError
-from clustertools.shared.typing import PathLike
+
+if TYPE_CHECKING:
+    from clustertools.cluster import Cluster
+    from clustertools.shared.typing import PathLike
 
 
 class SyncedFile:

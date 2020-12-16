@@ -1,9 +1,11 @@
+from __future__ import annotations
 from functools import wraps
 from os.path import expanduser, expandvars, realpath
 from pathlib import Path
-from typing import overload
+from typing import overload, TYPE_CHECKING
 
-from clustertools.shared.typing import PathLike
+if TYPE_CHECKING:
+    from clustertools.shared.typing import PathLike
 
 
 @overload

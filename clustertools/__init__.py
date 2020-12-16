@@ -1,11 +1,16 @@
+from __future__ import annotations
 from pathlib import Path
-from clustertools.cluster import Cluster
+
 
 version_info = (0, 0, 1)
 __version__ = '.'.join(map(str, version_info))
 
 CLUSTERTOOLS_CONFIG_DIR = Path.home().joinpath('.clustertools')
 CLUSTERTOOLS_TEMPLATES_DIR = Path(__file__).resolve().parent.joinpath('templates')
+
+
+from clustertools.cluster import Cluster
+
 
 # TODO: add logging functionality
 

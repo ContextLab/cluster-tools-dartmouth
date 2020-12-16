@@ -1,9 +1,12 @@
-from pathlib import Path
-from typing import Dict, Optional, Sequence, Union
+from __future__ import annotations
 
-from clustertools.configs.project_config import ProjectConfig
-from clustertools.cluster import Cluster
-from clustertools.shared.typing import NoneOrMore, OneOrMore, PathLike
+from pathlib import Path
+from typing import Dict, Optional, Sequence, TYPE_CHECKING, Union
+
+if TYPE_CHECKING:
+    from clustertools.cluster import Cluster
+    from clustertools.file_objects.project_config import ProjectConfig
+    from clustertools.shared.typing import NoneOrMore, OneOrMore, PathLike
 
 
 class ProjectHandlerMixin:

@@ -1,8 +1,11 @@
-from string import Template
-from typing import Dict, List, Optional, Sequence, Tuple
+from __future__ import annotations
 
-from clustertools.file_objects.script import ProjectScript
-from clustertools.project.project import Project
+from string import Template
+from typing import Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from clustertools.file_objects.script import ProjectScript
+    from clustertools.project.project import Project
 
 
 class Job:

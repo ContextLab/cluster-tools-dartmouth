@@ -1,11 +1,16 @@
+from __future__ import annotations
+
 from pathlib import PurePosixPath
+from typing import TYPE_CHECKING
 
 from clustertools import CLUSTERTOOLS_CONFIG_DIR
 from clustertools.file_objects.config_hooks import (PROJECT_CONFIG_UPDATE_HOOKS,
                                                     write_updated_config)
-from clustertools.file_objects.tracked_attr_config import TrackedAttrConfig
 from clustertools.file_objects.base_config import BaseConfig
-from clustertools.project.project import Project
+
+if TYPE_CHECKING:
+    from clustertools.file_objects.tracked_attr_config import TrackedAttrConfig
+    from clustertools.project.project import Project
 
 
 class ProjectConfig(BaseConfig):

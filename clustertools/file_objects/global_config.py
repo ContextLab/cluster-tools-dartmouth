@@ -1,12 +1,16 @@
+from __future__ import annotations
+
 import shutil
 from configparser import ConfigParser
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from clustertools import CLUSTERTOOLS_CONFIG_DIR, CLUSTERTOOLS_TEMPLATES_DIR
-from clustertools.cluster import Cluster
 from clustertools.file_objects.base_config import BaseConfig
 from clustertools.file_objects.config_hooks import GLOBAL_CONFIG_UPDATE_HOOKS
-from clustertools.shared.typing import PathLike
+
+if TYPE_CHECKING:
+    from clustertools.cluster import Cluster
+    from clustertools.shared.typing import PathLike
 
 
 class GlobalConfig(BaseConfig):

@@ -1,14 +1,17 @@
+from __future__ import annotations
+
 import os
 import shutil
 from pathlib import Path
 from subprocess import CalledProcessError
-from typing import List, NoReturn, Optional, Union
-
-import spur
+from typing import List, NoReturn, Optional, TYPE_CHECKING, Union
 
 from clustertools.shared.environ import PseudoEnviron
 from clustertools.shells.ssh_shell import SshShellMixin
-from clustertools.shared.typing import PathLike
+
+if TYPE_CHECKING:
+    import spur
+    from clustertools.shared.typing import PathLike
 
 
 ## noinspection PyAttributeOutsideInit, PyUnresolvedReferences

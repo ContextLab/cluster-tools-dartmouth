@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import os
 from pathlib import PurePosixPath
-from typing import Optional, Tuple
+from typing import Optional, TYPE_CHECKING
 
 from clustertools import CLUSTERTOOLS_CONFIG_DIR
 from clustertools.file_objects.global_config import GlobalConfig
@@ -8,7 +10,10 @@ from clustertools.project.project import Project
 from clustertools.project.project_handler import ProjectHandlerMixin
 from clustertools.shells.base_shell import BaseShell
 from clustertools.shared.exceptions import ClusterToolsProjectError, SSHConnectionError
-from clustertools.shared.typing import NoneOrMore
+
+if TYPE_CHECKING:
+    from clustertools.shared.typing import NoneOrMore
+
 
 # clustertools config directory structure
 #  $HOME
