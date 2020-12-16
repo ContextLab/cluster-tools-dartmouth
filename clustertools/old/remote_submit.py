@@ -56,7 +56,7 @@ def remote_submit(sync_changes=False, config_path=None):
             script_dir = opj(dirname(realpath(__file__)), 'cluster_scripts')
             upload_scripts(cluster, script_dir, job_config, confirm_overwrite)
 
-        # create bash script to submit and run submit.py from compute node
+        # create bash script to submit and run submit_old.py from compute node
         submitter_filepath = write_remote_submitter(
                                                     cluster,
                                                     job_config,
