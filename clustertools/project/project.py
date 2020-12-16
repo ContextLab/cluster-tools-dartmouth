@@ -1,19 +1,26 @@
+import itertools
 from pathlib import Path, PurePosixPath
 from string import Template
-from typing import Any, Dict, Iterable, List, Literal, Optional, Union
-
-import numpy as np
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 from clustertools.cluster import Cluster
 from clustertools.file_objects.project_config import ProjectConfig
 from clustertools.file_objects.script import ProjectScript
+from clustertools.project.job import Job, JobList
 from clustertools.shared.object_monitors import MonitoredEnviron, MonitoredList
 from clustertools.shared.typing import EmailAddress, PathLike, WallTimeStr
+
+
+job_params_types = Union[Sequence[Sequence[Any]]]
 
 
 # TODO: write checks that will run run right before submitting
 # TODO: add methods that call q___ (qdel, qsig, etc.) from pbs man page
 # TODO: remember to include -C self.directive_prefix flag in submit cmd
+# TODO: support keyword arguments to jobs via exporting as env variables,
+#  types are: Union[Sequence[Sequence[Union[str, int, float]]],
+#                   Sequence[Dict[str, Union[str, int, float]]],
+#                   Dict[Union[str, int], Sequence[str, int, float]]]
 
 
 class Project:
@@ -31,7 +38,8 @@ class Project:
             pre_submit_script: Optional[PathLike] = None,
             job_script: Optional[PathLike] = None,
             collector_script: Optional[PathLike] = None,
-            job_params: Optional[Union[List[Dict[str, Any]], Iterable[Iterable], np.ndarray]] = None,
+            job_params: Optional[job_params_types] = None,
+            params_as_matrix: bool = False,
             *,
             # CONFIG FIELDS SETTABLE VIA CONSTRUCTOR
             # a little egregious maybe, could wrap all these in
@@ -114,10 +122,13 @@ class Project:
         else:
             self.collector_script = collector_script
         # initialize job params
-        self._job_params = None
-        self.jobs = list()
-        if job_params is not None:
-            self.job_params = job_params
+        self._raw_job_params = job_params
+        self._params_as_matrix = params_as_matrix
+        if job_params is None:
+            self._job_params = job_params
+            self.jobs: Optional[JobList] = None
+        else:
+            self.parametrize_jobs(job_params, as_matrix=params_as_matrix)
 
     @property
     def name(self):
@@ -368,7 +379,7 @@ class Project:
         return self._pre_submit_script
 
     @pre_submit_script.setter
-    def pre_submit_script(self, script_path: PathLike):
+    def pre_submit_script(self, script_path: PathLike) -> None:
         local_path = Path(script_path).resolve(strict=True)
         file_ext = local_path.suffix
         remote_path = self.script_dir.joinpath(f'pre_submit').with_suffix(file_ext)
@@ -381,7 +392,7 @@ class Project:
         return self._job_script
 
     @job_script.setter
-    def job_script(self, script_path: PathLike):
+    def job_script(self, script_path: PathLike) -> None:
         local_path = Path(script_path).resolve(strict=True)
         file_ext = local_path.suffix
         remote_path = self.script_dir.joinpath(f'runner').with_suffix(file_ext)
@@ -394,7 +405,7 @@ class Project:
         return self._collector_script
 
     @collector_script.setter
-    def collector_script(self, script_path: PathLike):
+    def collector_script(self, script_path: PathLike) -> None:
         local_path = Path(script_path).resolve(strict=True)
         file_ext = local_path.suffix
         remote_path = self.script_dir.joinpath(f'collector').with_suffix(file_ext)
@@ -403,21 +414,21 @@ class Project:
                                                remote_path=remote_path)
 
     @property
-    def job_params(self) -> Union[List[Dict[str, Any]], List[List, ...], np.ndarray]:
+    def job_params(self) -> List[Tuple[str]]:
         return self._job_params
 
     @job_params.setter
-    def job_params(
-            self,
-            new_params: Union[List[Dict[str, Any]], List[List, ...], np.ndarray]
-    ) -> None:
-        old_params = self._job_params
-        self._job_params = new_params
-        try:
+    def job_params(self, new_params: job_params_types) -> None:
+        self.parametrize_jobs(new_params)
+        
+    @property
+    def params_as_matrix(self) -> bool:
+        return self._params_as_matrix
+
+    @params_as_matrix.setter
+    def params_as_matrix(self, as_matrix: bool) -> None:
+        if as_matrix != self._params_as_matrix:
             self.parametrize_jobs()
-        except:
-            self._job_params = old_params
-            raise
 
     def _get_mail_options(self) -> str:
         mail_option_str = ''
@@ -439,6 +450,18 @@ class Project:
         # TODO: write me
         pass
 
+    def parametrize_jobs(self, *params, as_matrix: Optional[bool] = None) -> None:
+        if len(params) == 1:
+            params: job_params_types = params[0]
+        if as_matrix is None:
+            as_matrix = self._params_as_matrix
+        else:
+            self._params_as_matrix = as_matrix
+        params = [tuple(map(str, param_vals)) for param_vals in params]
+        if as_matrix:
+            params = list(itertools.product(*params))
+        self._job_params = params
+        self.jobs = JobList(self)
 
 
 
