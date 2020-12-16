@@ -1,4 +1,5 @@
-from typing import Dict, Iterable, List, Optional, Tuple
+from string import Template
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from clustertools.file_objects.script import ProjectScript
 from clustertools.project.project import Project
@@ -9,7 +10,8 @@ class Job:
             self,
             project: Project,
             script: ProjectScript,
-            params: Iterable
+            wrapper_template: Template,
+            params: Optional[Sequence] = None
     ) -> None:
         self._project = project
         self.script = script
@@ -30,7 +32,7 @@ class JobList(list):
                 f"'{self.__class__.__name__}' object does not support slicing"
             )
         else:
-            return Job(self._project.job_params.__getitem__(y))
+            return Job(self, self._project.job_params.__getitem__(y))
 
     def __iter__(self):
         for i in self._project.job_params.__iter__():

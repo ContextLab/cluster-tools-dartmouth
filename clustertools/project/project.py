@@ -7,11 +7,19 @@ from clustertools.cluster import Cluster
 from clustertools.file_objects.project_config import ProjectConfig
 from clustertools.file_objects.script import ProjectScript
 from clustertools.project.job import Job, JobList
+from clustertools.shared.exceptions import ProjectConfigurationError
 from clustertools.shared.object_monitors import MonitoredEnviron, MonitoredList
-from clustertools.shared.typing import EmailAddress, PathLike, WallTimeStr
+from clustertools.shared.typing import PathLike, WallTimeStr
+from clustertools.templates.job_wrapper import (ENV_ACTIVATE_COMMAND,
+                                                ENV_DEACTIVATE_COMMAND,
+                                                JOB_SUFFIX,
+                                                MODULE_LOAD_COMMAND,
+                                                USER_HOLD_DIRECTIVE,
+                                                VAR_EXPORT_DIRECTIVE,
+                                                WRAPPER_TEMPLATE)
 
 
-job_params_types = Union[Sequence[Sequence[Any]]]
+job_params_types = Union[Sequence[Any], Sequence[Sequence[Any]]]
 
 
 # TODO: write checks that will run run right before submitting
@@ -27,6 +35,19 @@ class Project:
     # ADD DOCSTRING
     # TODO: allow passing scripts as strings? *should* be doable, if
     #  limited in functionality...
+    inferred_cmd_wrappers = {
+        '.jar': 'java -jar',
+        '.jl': 'julia',
+        '.m': 'matlab',
+        '.pl': 'perl',
+        '.py': 'python',
+        '.r': 'R',
+        '.rb': 'ruby',
+        '.sas': 'sas',
+        # '.sh': (gets assigned self.cluster.executable in the instance)
+        '.swift': 'swift'
+    }
+
     @classmethod
     def load(cls, name: str, cluster: Cluster) -> 'Project':
         ...
@@ -48,16 +69,16 @@ class Project:
             job_basename: Optional[str] = None,
             cmd_wrapper: Optional[str] = None,
             modules: Optional[List[str]] = None,
-            virtual_env_type: Optional[Literal['conda', 'venv', 'pipenv']] = None,
-            virtual_env_name: Optional[str] = None,
-            use_cluster_environ: Optional[bool] = None,
+            env_activate_cmd: Optional[str] = None,
+            env_deactivate_cmd: Optional[str] = None,
+            use_global_environ: Optional[bool] = None,
             environ_additions: Optional[Dict[str, str]] = None,
             directive_prefix: Optional[str] = None,
             queue: Optional[Literal['default', 'largeq']] = None,
             n_nodes: Optional[int] = None,
             ppn: Optional[int] = None,
             wall_time: Optional[WallTimeStr] = None,
-            email_address: Optional[str] = None,
+            user_to_notify: Optional[str] = None,
             notify_job_start: Optional[bool] = None,
             notify_all_start: Optional[bool] = None,
             notify_job_finish: Optional[bool] = None,
@@ -75,15 +96,15 @@ class Project:
             'job_basename': job_basename,
             'cmd_wrapper': cmd_wrapper,
             'modules': modules,
-            'virtual_env_type': virtual_env_type,
-            'virtual_env_name': virtual_env_name,
-            'use_cluster_environ': use_cluster_environ,
+            'env_activate_cmd': env_activate_cmd,
+            'env_deactivate_cmd': env_deactivate_cmd,
+            'use_global_environ': use_global_environ,
             'directive_prefix': directive_prefix,
             'queue': queue,
             'n_nodes': n_nodes,
             'ppn': ppn,
             'wall_time': wall_time,
-            'email': email_address,
+            'user': user_to_notify,
             'job_start': notify_job_start,
             'all_start': notify_all_start,
             'job_finish': notify_job_finish,
@@ -105,10 +126,12 @@ class Project:
         # initialize remote directory structure for project
         for remote_dir in (self.stdout_dir,
                            self.stderr_dir,
+                           self.wrapper_dir,
                            self.input_datadir,
                            self.output_datadir):
             self._cluster.mkdir(remote_dir, parents=True, exist_ok=True)
         # initialize script objects
+        self._raw_wrapper_template = WRAPPER_TEMPLATE
         if pre_submit_script is None:
             self._pre_submit_script = None
         else:
@@ -121,11 +144,12 @@ class Project:
             self._collector_script = None
         else:
             self.collector_script = collector_script
+
         # initialize job params
         self._raw_job_params = job_params
         self._params_as_matrix = params_as_matrix
         if job_params is None:
-            self._job_params = job_params
+            self._job_params = None
             self.jobs: Optional[JobList] = None
         else:
             self.parametrize_jobs(job_params, as_matrix=params_as_matrix)
@@ -208,8 +232,10 @@ class Project:
 
     @property
     def cmd_wrapper(self) -> str:
-        # TODO: make this display inferred value if value is "INFER"
-        return self.config.general.cmd_wrapper
+        cmd_wrapper = self.config.general.cmd_wrapper
+        if cmd_wrapper == 'INFER' and self.job_script is not None:
+            return self._infer_cmd_wrapper()
+        return cmd_wrapper
 
     @cmd_wrapper.setter
     def cmd_wrapper(self, new_cmd) -> None:
@@ -226,31 +252,28 @@ class Project:
         self.config.runtime_environment.modules = new_module_list
 
     @property
-    def virtual_env_type(self) -> Literal['conda', 'venv', 'pipenv']:
-        return self.config.runtime_environment.virtual_env_type
+    def env_activate_cmd(self) -> str:
+        return self.config.runtime_environment.env_activate_cmd
 
-    @virtual_env_type.setter
-    def virtual_env_type(
-            self,
-            new_envtype: Literal['conda', 'venv', 'pipenv']
-    ) -> None:
-        self.config.runtime_environment.virtual_env_type = new_envtype
+    @env_activate_cmd.setter
+    def env_activate_cmd(self, new_cmd: str) -> None:
+        self.config.runtime_environment.env_activate_cmd = new_cmd
 
     @property
-    def virtual_env_name(self) -> str:
-        return self.config.runtime_environment.virtual_env_name
+    def env_deactivate_cmd(self) -> str:
+        return self.config.runtime_environment.env_deactivate_cmd
 
-    @virtual_env_name.setter
-    def virtual_env_name(self, new_name: str) -> None:
-        self.config.runtime_environment.virtual_env_name = new_name
+    @env_deactivate_cmd.setter
+    def env_deactivate_cmd(self, new_cmd: str) -> None:
+        self.config.runtime_environment.env_deactivate_cmd = new_cmd
 
     @property
-    def use_cluster_environ(self) -> bool:
-        return self.config.runtime_environment.use_cluster_environ
+    def use_global_environ(self) -> bool:
+        return self.config.runtime_environment.use_global_environ
 
-    @use_cluster_environ.setter
-    def use_cluster_environ(self, use: bool) -> None:
-        self.config.runtime_environment.use_cluster_environ = use
+    @use_global_environ.setter
+    def use_global_environ(self, use: bool) -> None:
+        self.config.runtime_environment.use_global_environ = use
         
     @property
     def environ(self) -> MonitoredEnviron:
@@ -300,12 +323,13 @@ class Project:
         self.config.pbs_params.wall_time = new_walltime
 
     @property
-    def email_address(self) -> EmailAddress:
-        return self.config.notifications.email
+    def user_to_notify(self) -> str:
+        user = self.config.notifications.user
+        return self._cluster.username if user == 'INFER' else user
 
-    @email_address.setter
-    def email_address(self, new_email: EmailAddress) -> None:
-        self.config.notifications.email = new_email
+    @user_to_notify.setter
+    def user_to_notify(self, new_user: str) -> None:
+        self.config.notifications.user = new_user
 
     @property
     def notify_job_start(self) -> bool:
@@ -365,11 +389,11 @@ class Project:
 
     @property
     def auto_resubmit(self) -> bool:
-        return self.config.monitoring.auto_resubmit_failed
+        return self.config.monitoring.auto_resubmit_aborted
 
     @auto_resubmit.setter
     def auto_resubmit(self, pref: bool) -> None:
-        self.config.monitoring.auto_resubmit_failed = pref
+        self.config.monitoring.auto_resubmit_aborted = pref
 
     ##########################################################
     #                SCRIPT OBJECT PROPERTIES                #
@@ -414,6 +438,47 @@ class Project:
                                                remote_path=remote_path)
 
     @property
+    def wrapper_template(self):
+        # first, fill the top-level template with the correct
+        # sub-templates
+        subtemplates = dict()
+        if any(self.environ):
+            subtemplates['environ_exporter'] = VAR_EXPORT_DIRECTIVE.template
+        else:
+            subtemplates['environ_exporter'] = ""
+        if any(self.modules):
+            subtemplates['module_loader'] = MODULE_LOAD_COMMAND.template
+        else:
+            subtemplates['module_loader'] = ""
+        if self.env_activate_cmd or self.env_deactivate_cmd:
+            subtemplates['virtual_env_activator'] = ENV_ACTIVATE_COMMAND
+            subtemplates['virtual_env_deactivator'] = ENV_DEACTIVATE_COMMAND
+        else:
+            subtemplates['virtual_env_activator'] = ""
+            subtemplates['virtual_env_deactivator'] = ""
+        wrapper_template = Template(self._raw_wrapper_template.safe_substitute(subtemplates))
+        # next, fill non-job-specific fields
+        substitutions = {
+            'directive_prefix': self.directive_prefix,
+            'job_basename': self.job_basename,
+            'project_root': self.root_dir,
+            'stdout_dir': self.stdout_dir,
+            'stderr_dir': self.stderr_dir,
+            'environ_vars': ','.join('='.join(i) for i in self.environ.items()),
+            'queue': self.queue,
+            'n_nodes': self.n_nodes,
+            'ppn': self.ppn,
+            'wall_time': self.wall_time,
+            'user': self.user_to_notify,
+            # 'mail_options': self._get_mail_options(),
+            'modules': ' '.join(self.modules),
+            'activate_cmd': self.env_activate_cmd,
+            'cmd_wrapper': self.cmd_wrapper,
+            'deactivate_cmd': self.env_deactivate_cmd
+        }
+
+
+    @property
     def job_params(self) -> List[Tuple[str]]:
         return self._job_params
 
@@ -428,7 +493,11 @@ class Project:
     @params_as_matrix.setter
     def params_as_matrix(self, as_matrix: bool) -> None:
         if as_matrix != self._params_as_matrix:
-            self.parametrize_jobs()
+            if self._raw_job_params is None:
+                # can't parse job params if they haven't been provided yet
+                self._params_as_matrix = as_matrix
+            else:
+                self.parametrize_jobs(self._raw_job_params, as_matrix=as_matrix)
 
     def _get_mail_options(self) -> str:
         mail_option_str = ''
@@ -444,62 +513,79 @@ class Project:
             mail_option_str = 'n'
         return mail_option_str
 
-    def configure(self):
-        # ADD DOCSTRING - walks user through setting parameters
-        #  interactively
-        # TODO: write me
-        pass
+    def _infer_cmd_wrapper(self) -> str:
+        # TODO: add more options
+        jobscript_ext = self.job_script.local_path.suffix
+        cmd_wrappers = Project.inferred_cmd_wrappers
+        cmd_wrappers['.sh'] = self._cluster.executable
+        return cmd_wrappers.get(jobscript_ext, 'INFER')
 
-    def parametrize_jobs(self, *params, as_matrix: Optional[bool] = None) -> None:
-        if len(params) == 1:
-            params: job_params_types = params[0]
+    # def configure(self):
+    #     # ADD DOCSTRING - walks user through setting parameters
+    #     #  interactively
+    #     # TODO: write me
+    #     pass
+
+    def check_submittable(self) -> bool:
+        # returns True if all requirements to submit are met
+        if self.auto_resubmit and not self.auto_monitor_jobs:
+            raise ProjectConfigurationError(
+                "Auto job monitoring must be enabled to automatically resubmit "
+                "aborted jobs. Please set the 'project.auto_monitor_jobs = True' "
+                "to enable auto monitoring, or 'project.auto_resubmit = False' "
+                "to disable auto resubmission"
+            )
+        if bool(self.env_activate_cmd) is not bool(self.env_deactivate_cmd):
+            raise ProjectConfigurationError(
+                "If running jobs inside a virtual environment, you must "
+                "provide both a command to activate/enter the environment and "
+                "a command to deactivate/exit it afterward"
+            )
+        if self.cmd_wrapper == 'INFER':
+            raise ProjectConfigurationError(
+                "Unable to infer a command for running a job script ending in "
+                f"'{self.job_script.local_path.suffix}'. Please set "
+                "'project.cmd_wrapper' before submitting jobs"
+            )
+        if self.job_params is None and self.job_script.expects_args:
+            raise ProjectConfigurationError(
+                "Failed to assemble jobs for submission: job scripts appear to "
+                "expect command line arguments and no job parameters were "
+                "provided. Please use the 'project.parametrize_jobs()' or set "
+                "'project.job_params' and 'project.params_as_matrix' to "
+                "provide parameters for each job"
+            )
+        return True
+
+    def parametrize_jobs(
+            self,
+            params: job_params_types,
+            *,
+            as_matrix: Optional[bool] = None
+    ) -> None:
         if as_matrix is None:
             as_matrix = self._params_as_matrix
         else:
             self._params_as_matrix = as_matrix
-        params = [tuple(map(str, param_vals)) for param_vals in params]
+        if not hasattr(params[0], '__iter__') or isinstance(params[0], str):
+            params = [(str(param_val),) for param_val in params]
+        else:
+            params = [tuple(map(str, param_vals)) for param_vals in params]
         if as_matrix:
             params = list(itertools.product(*params))
         self._job_params = params
         self.jobs = JobList(self)
 
-
+    def submit(self):
+        print('time to submit!')
+        import pickle
+        with self._cluster.cwd.joinpath('TEST_PICKLE.p').open('wb') as f:
+            pickle.dump(self, f)
 
 
 
 
 ################################################################################
-# TODO: look into adding #PBS -W depend=dependency_list to enforce
-#  pre-submit/runner/collector start order
-# TODO: look into whether #PBS -W group_list=group is required to access
-#  resources available to 'group'
-# TODO: look into adding option to run on nodes with particular 'feature's
-WRAPPER_TEMPLATE = Template(
-"""#!/bin/bash -l
-#${directive_prefix} -N ${job_name}
-#${directive_prefix} -d ${project_root}
-#${directive_prefix} -w ${project_root}
-#${directive_prefix} -o ${stdout_dir}/${job_name}.stdout
-#${directive_prefix} -e ${stderr_dir}/${job_name}.stderr
-#${directive_prefix} -v ${environ_vars}
-#${directive_prefix} -q ${queue}
-#${directive_prefix} -l nodes=${nnodes}:ppn=${ppn}
-#${directive_prefix} -l walltime=${walltime}
-#${directive_prefix} -M ${email_addr}
-#${directive_prefix} -m ${mail_options}
-
-echo "loading modules: ${modules}"
-module load $modules
-
-echo activating ${env_type} environment: $env_name
-$activate_cmd $env_name
-
-echo calling job script
-$cmd_wrapper $job_command
-echo job script finished
-$deactivate_cmd
-"""
-)
 
 
 class SimpleDefaultDict(dict):
