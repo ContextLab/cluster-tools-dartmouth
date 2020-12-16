@@ -1,11 +1,11 @@
 from pathlib import PurePosixPath
 
 from clustertools import CLUSTERTOOLS_CONFIG_DIR
-from clustertools.project.project import Project
 from clustertools.file_objects.config_hooks import (PROJECT_CONFIG_UPDATE_HOOKS,
                                                     write_updated_config)
 from clustertools.file_objects.tracked_attr_config import TrackedAttrConfig
 from clustertools.file_objects.base_config import BaseConfig
+from clustertools.project.project import Project
 
 
 class ProjectConfig(BaseConfig):
@@ -55,27 +55,35 @@ class ProjectConfig(BaseConfig):
         self.write_config_file()
 
     def _parse_config(self) -> TrackedAttrConfig:
-        # priority order for environment variables goes
-        # cluster shell environment (read from printenv) < defaults
-        # specified in global_config.ini (before this project's config
-        # file was created) < vars passed to the Cluster constructor <
-        # vars passed to the Project contructor < vars set after
-        # creating the Project object but before submitting jobs
-        use_cluster_environ = self._configparser.getboolean('runtime_environment',
-                                                            'use_cluster_environ')
-        if use_cluster_environ or any(self._cluster._env_additions):
-            config_vars = self._configparser.get('runtime_environment', 'environ')
-            config_vars = map(lambda x: x.split('='), config_vars.strip().splitlines())
-            config_vars = {k.strip(): v.strip() for k, v in config_vars}
-            if use_cluster_environ:
-                environ_vars = self._cluster.environ.copy()
-            else:
-                # environ obj was constructed from and prioritizes
-                # env_additions, so no need to handle situation where
-                # both are True
-                environ_vars = self._cluster._env_additions
-            environ_vars.update(config_vars)
-            # TODO: additional sources to update this with?
-            environ_str = BaseConfig._environ_to_str(environ_vars)
-            self._configparser.set('runtime_environment', 'environ', environ_str)
+        # priority order for project environment variables
+        # (highest to lowest):
+        #  - vars set after creating Project object but before
+        #    submitting jobs
+        #  - vars passed to the Project constructor TODO: make this possible
+        #  - vars set in project_config.ini (whether by default or from
+        #    load of previous state)
+        #  - vars set on Cluster object after creation
+        #    (if use_global_environ)
+        #  - vars passed to Cluster constructor (if use_global_environ)
+        # TODO: additional sources to update this with?
+        use_global_environ = self._configparser.getboolean('runtime_environment',
+                                                            'use_global_environ')
+        if use_global_environ:
+            _global_env = self._cluster.environ
+            custom_global_vars = {
+                ev: val
+                for ev, val in _global_env.items()
+                    if val != _global_env._initial_env.get(ev, None)
+            }
+            if any(custom_global_vars):
+                project_config_env = self._configparser.get('runtime_environment',
+                                                            'environ')
+                project_config_env = map(lambda x: x.split('='),
+                                         project_config_env.strip().splitlines())
+                project_config_env = {
+                    k.strip(): v.strip() for k, v in project_config_env
+                }
+                custom_global_vars.update(project_config_env)
+                environ_str = BaseConfig._environ_to_str(custom_global_vars)
+                self._configparser.set('runtime_environment', 'environ', environ_str)
         return super()._parse_config()

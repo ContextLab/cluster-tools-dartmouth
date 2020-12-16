@@ -14,7 +14,9 @@ class BaseConfig(SyncedFile):
     # ADD DOCSTRING
 
     @staticmethod
-    def _environ_to_str(environ: MonitoredEnviron[str, str]) -> str:
+    def _environ_to_str(
+            environ: Union[MonitoredEnviron[str, str], Dict[str, str]]
+    ) -> str:
         str_fmt = '\n'.join(' = '.join(item) for item in environ.items())
         if str_fmt != '':
             str_fmt = '\n' + str_fmt
