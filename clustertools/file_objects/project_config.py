@@ -25,7 +25,7 @@ class ProjectConfig(BaseConfig):
         remote_path = remote_home.joinpath('.clustertools', project.name,
                                            'project_config.ini')
         # needs to happen before _init_local is called
-        self._attr_update_hooks.update(PROJECT_CONFIG_UPDATE_HOOKS)
+        self._attr_update_hooks = PROJECT_CONFIG_UPDATE_HOOKS
         self._project = project
         super().__init__(cluster=cluster,
                          local_path=local_path,

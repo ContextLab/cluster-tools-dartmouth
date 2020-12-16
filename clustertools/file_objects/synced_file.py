@@ -72,7 +72,7 @@ class SyncedFile:
     @property
     def md5sum_remote(self) -> str:
         # ADD DOCSTRING
-        return self._cluster.shell.md5(self.remote_path)
+        return self._cluster.shell.md5(str(self.remote_path))
 
     @property
     def is_synced(self):
@@ -86,7 +86,7 @@ class SyncedFile:
     def _init_remote(self):
         # may be overridden in subclasses to set specific behaviors on
         # local/remote mapping creation. By default, syncs the two files
-        if not self._cluster.is_file(self.remote_path) or not self.is_synced:
+        if not self._cluster.is_file(str(self.remote_path)) or not self.is_synced:
             # TODO: reorder attr assignment in self.__init__ so that
             #  when global config is initialized, self.sync() can be run
             #  here with preferred sync method (local/remote/recent)
@@ -94,7 +94,7 @@ class SyncedFile:
 
     def upload(self) -> None:
         self._cluster.put(local_path=self.local_path,
-                          remote_path=self.remote_path,
+                          remote_path=str(self.remote_path),
                           create_directories=False,
                           consistent=True)
 

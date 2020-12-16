@@ -49,10 +49,10 @@ class BaseConfig(SyncedFile):
             remote_path: Optional[PathLike] = None
     ) -> None:
         # ADD DOCSTRING
+        self._attr_update_hooks.update(BASE_CONFIG_UPDATE_HOOKS)
         super().__init__(cluster=cluster, local_path=local_path, remote_path=remote_path)
         self._environ_update_hook = None
         self._modules_update_hook = None
-        self._attr_update_hooks = BASE_CONFIG_UPDATE_HOOKS
 
     def __getattr__(self, item):
         # makes TrackedAttrConfig methods and fields accessible directly

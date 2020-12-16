@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import getpass
+import inspect
 import os
 import socket
 from pathlib import Path
-from typing import Callable, Dict, Optional, Union, Tuple, TYPE_CHECKING
+from typing import (Callable,
+                    Dict,
+                    Optional,
+                    Union,
+                    Tuple,
+                    TYPE_CHECKING,
+                    Sequence)
 
 import spur
 
@@ -17,8 +24,7 @@ if TYPE_CHECKING:
                                             MswStdoutDest,
                                             NoneOrMore,
                                             OneOrMore,
-                                            PathLike,
-                                            Sequence)
+                                            PathLike)
 
 
 ## noinspection PyAttributeOutsideInit,PyUnresolvedReferences
@@ -27,8 +33,16 @@ class BaseShell:
     # TODO: test use as context manager when spawning a process that runs
     #  longer than the context block
     def __new__(cls, *args, **kwargs):
-        shell_mixin = LocalShellMixin if kwargs.get('_local') else SshShellMixin
-        bases = (shell_mixin, *cls.__bases__)
+        signature = inspect.signature(cls.__init__)
+        bound_args = signature.bind_partial(*args, **kwargs)
+        bound_args.apply_defaults()
+        if bound_args.arguments['hostname'] == 'localhost':
+            shell_mixin = LocalShellMixin
+            raise NotImplementedError("Configuration for local deployment is "
+                                      "not yet fully supported")
+        else:
+            shell_mixin = SshShellMixin
+        bases = (cls, shell_mixin)
         # TODO: could vary the name here based on which mixin is used as
         #  long as it doesn't mess with Cluster inheritance
         return super().__new__(type(cls.__name__, bases, dict(cls.__dict__)))
@@ -42,7 +56,6 @@ class BaseShell:
             executable: Optional[PathLike] = None,
             env_additions: Optional[Dict[str, str]] = None,
             connect: bool = True,
-            _local: bool = False,
             **connection_kwargs
     ) -> None:
         # ADD DOCSTRING -- note circular issue: if using an executable
@@ -56,13 +69,12 @@ class BaseShell:
         #  connecting, other environment variables will reflect having
         #  been read from a bash shell
 
-        # TODO: make _local required but keyword-only?
         self._env_additions = env_additions or dict()
         self._environ = None
         self._cwd = cwd
         self._executable = executable
         self.connected = False
-        if _local:
+        if hostname == 'localhost':
             self._shell = spur.LocalShell()
             self._hostname = socket.gethostname()
             self._username = getpass.getuser()
@@ -93,7 +105,7 @@ class BaseShell:
     # directly.
     def getenv(self, key: str, default: Optional[str] = None) -> Union[str, None]:
         # ADD DOCSTRING
-        return self.environ.get(key, default=default)
+        return self.environ.get(key, default)
 
     def putenv(self, key: str, value: str) -> None:
         # ADD DOCSTRING
@@ -111,12 +123,12 @@ class BaseShell:
         # Note: that this doesn't account for an environment variable
         # that references  another environment variable, but neither
         # does os.path.expandvars
-        if '$' in path:
+        if '$' in str(path):
             path_type = type(path)
             parts = str(path).split(pathsep)
             for ix, p in enumerate(parts):
                 if p.startswith('$'):
-                    parts[ix] = self.environ.get(p[1:].strip('{}'), default=p)
+                    parts[ix] = self.environ.get(p[1:].strip('{}'), p)
             # fix any substitution or joining inconsistencies, restore
             # to input type
             path = path_type(pathsep.join(parts).replace('//', '/'))

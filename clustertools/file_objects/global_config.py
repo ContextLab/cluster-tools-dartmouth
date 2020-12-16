@@ -19,10 +19,11 @@ class GlobalConfig(BaseConfig):
     def __init__(self, cluster: Cluster, remote_path: Optional[PathLike] = None) -> None:
         # ADD DOCSTRING
         global_config_path_local = CLUSTERTOOLS_CONFIG_DIR.joinpath('global_config.ini')
+        # needs to happen before BaseConfig._init_local is called
+        self._attr_update_hooks = GLOBAL_CONFIG_UPDATE_HOOKS
         super().__init__(cluster=cluster,
                          local_path=global_config_path_local,
                          remote_path=remote_path)
-        self._attr_update_hooks.update(GLOBAL_CONFIG_UPDATE_HOOKS)
 
     def _environ_update_hook(self):
         environ_str = BaseConfig._environ_to_str(self._config.environ)
@@ -40,9 +41,9 @@ class GlobalConfig(BaseConfig):
         super()._init_local()
 
     def _init_remote(self):
-        if self._config.login.project_dir == '$HOME':
-            self._config.login.project_dir = self._cluster.getenv('HOME', default='$HOME')
         super()._init_remote()
+        if self._config.general.project_dir == '$HOME':
+            self._config.general.project_dir = self._cluster.getenv('HOME', default='$HOME')
 
     def _modules_update_hook(self):
         modules_str = ', '.join(self._config.project_defaults.runtime_environment.modules)

@@ -51,7 +51,7 @@ class SshShellMixin:
                     # defaulting/resetting cwd to $HOME
                     self._cwd = PurePosixPath(self.environ.get('HOME'))
                 else:
-                    new_cwd = self.resolve_path(PurePosixPath(new_cwd), strict=True)
+                    new_cwd = self.resolve_path(str(new_cwd), strict=True)
                     try:
                         if not self.shell.is_dir(new_cwd):
                             # new_cwd points to a file
@@ -108,7 +108,7 @@ class SshShellMixin:
                 # rather than its full path and multiple options exist
                 # (e.g., /bin/bash vs /usr/bin/bash), uses first one
                 # found in $PATH the same way calling name from shell would
-                full_exe_path = self.check_output(['command', -'v', new_exe]).strip()
+                full_exe_path = self.shell.check_output(['command', '-v', new_exe]).strip()
             except RunProcessError as e:
                 raise ValueError(f"No remote executable matching '{new_exe}' "
                                  f"found in $PATH") from e
@@ -169,8 +169,10 @@ class SshShellMixin:
 
     def is_dir(self, path: PathLike) -> bool:
         # ADD DOCSTRING
+        # has to be str because spurplus.SshShell.is_dir only accepts
+        # str and pathlib.Path for no good reason at all :(
         try:
-            return self.shell.is_dir(remote_path=path)
+            return self.shell.is_dir(remote_path=str(path))
         except FileNotFoundError:
             # spurplus.SshShell.is_dir raises FileNotFoundError if path
             # doesn't exist; pathlib.Path.is_dir returns False. pathlib
@@ -201,7 +203,9 @@ class SshShellMixin:
         # ADD DOCSTRING
         # mode 16877, octal equiv: '0o40755' (user has full rights, all
         # others can read/traverse)
-        path = self.resolve_path(path, strict=False)
+        # has to be str because spurplus.SshShell.is_dir only accepts
+        # str and pathlib.Path for no good reason at all :(
+        path = self.resolve_path(str(path), strict=False)
         self.shell.mkdir(remote_path=path,
                          mode=mode,
                          parents=parents,

@@ -37,10 +37,6 @@ class Cluster(BaseShell):
             **shell_kwargs
     ) -> None:
         # ADD DOCSTRING
-        _local = hostname == 'localhost'
-        if _local:
-            raise NotImplementedError("Configuration for local deployment is "
-                                      "not yet fully supported")
         self.config = GlobalConfig(cluster=self)
         cwd = shell_kwargs.pop('cwd', None)
         if cwd is None and self.config.general.launch_in_project_dir:
@@ -55,10 +51,9 @@ class Cluster(BaseShell):
                          executable=executable,
                          env_additions=env_additions,
                          port=port,
-                         connect=False,
-                         _local=_local)
-        if connect and not _local:
-            self.connect(**shell_kwargs)
+                         connect=False)
+        if connect and hostname != 'localhost':
+            self.connect(password=password, **shell_kwargs)
         self.project = None
         self._all_projects = tuple(next(os.walk(CLUSTERTOOLS_CONFIG_DIR))[1])
 
