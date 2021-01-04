@@ -359,7 +359,7 @@ class SshShellMixin:
             tmp_exe = self.executable or '/bin/bash'
             printenv_command = [tmp_exe, '-lc', 'printenv']
             # TODO: a more robust solution for this in case BASH_FUNC_module isn't last
-            initial_env = self.shell.run(printenv_command).output.split('\nBASH_FUNC_module()')[0]
+            initial_env = self.shell.check_output(printenv_command).split('\nBASH_FUNC_module()')[0]
             initial_env = dict(map(lambda x: x.split('=', maxsplit=1), initial_env.splitlines()))
             self._environ = PseudoEnviron(initial_env=initial_env, custom_vars=self._env_additions)
         # initial validation of properties that depend on environment

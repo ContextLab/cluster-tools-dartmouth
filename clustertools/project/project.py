@@ -16,7 +16,8 @@ from typing import (Any,
 from clustertools.file_objects.project_config import ProjectConfig
 from clustertools.file_objects.script import ProjectScript
 from clustertools.project.job import JobList
-from clustertools.shared.exceptions import ProjectConfigurationError
+from clustertools.shared.exceptions import (ClusterToolsProjectError,
+                                            ProjectConfigurationError)
 from clustertools.templates.job_wrapper import (ENV_ACTIVATE_COMMAND,
                                                 ENV_DEACTIVATE_COMMAND,
                                                 MODULE_LOAD_COMMAND,
@@ -60,6 +61,7 @@ class Project:
 
     @classmethod
     def load(cls, name: str, cluster: Cluster) -> 'Project':
+        # TODO: write me - for loading an existing project
         ...
 
     def __init__(
@@ -417,7 +419,7 @@ class Project:
         local_path = Path(script_path).resolve(strict=True)
         file_ext = local_path.suffix
         remote_path = self.script_dir.joinpath(f'pre_submit').with_suffix(file_ext)
-        self._pre_submit_script = ProjectScript(cluster=self._cluster,
+        self._pre_submit_script = ProjectScript(project=self,
                                                 local_path=local_path,
                                                 remote_path=remote_path)
 
@@ -430,7 +432,7 @@ class Project:
         local_path = Path(script_path).resolve(strict=True)
         file_ext = local_path.suffix
         remote_path = self.script_dir.joinpath(f'runner').with_suffix(file_ext)
-        self._job_script = ProjectScript(cluster=self._cluster,
+        self._job_script = ProjectScript(project=self,
                                          local_path=local_path,
                                          remote_path=remote_path)
 
@@ -443,7 +445,7 @@ class Project:
         local_path = Path(script_path).resolve(strict=True)
         file_ext = local_path.suffix
         remote_path = self.script_dir.joinpath(f'collector').with_suffix(file_ext)
-        self._collector_script = ProjectScript(cluster=self._cluster,
+        self._collector_script = ProjectScript(project=self,
                                                local_path=local_path,
                                                remote_path=remote_path)
 
@@ -509,6 +511,18 @@ class Project:
             else:
                 self.parametrize_jobs(self._raw_job_params, as_matrix=as_matrix)
 
+    ##########################################################
+    #                PROJECT STATE PROPERTIES                #
+    ##########################################################
+    @property
+    def has_active_jobs(self):
+        # ADD DOCSTRING
+        # TODO: write me
+        raise NotImplementedError
+
+    ##########################################################
+    #                  MISC. HELPER METHODS                  #
+    ##########################################################
     def _get_mail_options(self) -> str:
         mail_option_str = ''
         if self.notify_job_abort:
@@ -537,11 +551,25 @@ class Project:
     #     pass
 
     def check_submittable(self) -> bool:
-        # returns True if all requirements to submit are met
+        # ADD DOCSTRING
+        # returns True if all requirements to submit jobs are met
+        if self.job_script is None:
+            raise ClusterToolsProjectError(
+                "No job script specified. Set 'project.job_script' to the path "
+                "to the file you want to use to run individual jobs."
+            )
+        if self.job_params is None and self.job_script.expects_args:
+            raise ProjectConfigurationError(
+                "Failed to assemble jobs for submission: job scripts appear to "
+                "expect command line arguments and no job parameters were "
+                "provided. Please use 'project.parametrize_jobs()' or set "
+                "'project.job_params' and 'project.params_as_matrix' to "
+                "provide parameters for each job"
+            )
         if self.auto_resubmit and not self.auto_monitor_jobs:
             raise ProjectConfigurationError(
                 "Auto job monitoring must be enabled to automatically resubmit "
-                "aborted jobs. Please set the 'project.auto_monitor_jobs = True' "
+                "aborted jobs. Please set 'project.auto_monitor_jobs = True' "
                 "to enable auto monitoring, or 'project.auto_resubmit = False' "
                 "to disable auto resubmission"
             )
@@ -556,14 +584,6 @@ class Project:
                 "Unable to infer a command for running a job script ending in "
                 f"'{self.job_script.local_path.suffix}'. Please set "
                 "'project.cmd_wrapper' before submitting jobs"
-            )
-        if self.job_params is None and self.job_script.expects_args:
-            raise ProjectConfigurationError(
-                "Failed to assemble jobs for submission: job scripts appear to "
-                "expect command line arguments and no job parameters were "
-                "provided. Please use the 'project.parametrize_jobs()' or set "
-                "'project.job_params' and 'project.params_as_matrix' to "
-                "provide parameters for each job"
             )
         return True
 
@@ -586,11 +606,25 @@ class Project:
         self._job_params = params
         self.jobs = JobList(self)
 
-    def submit(self):
-        print('time to submit!')
-        import pickle
-        with self._cluster.cwd.joinpath('TEST_PICKLE.p').open('wb') as f:
-            pickle.dump(self, f)
+    ##########################################################
+    #                 JOB SUBMISSION METHODS                 #
+    ##########################################################
+    # def submit(self):
+        # ADD DOCSTRING
+        # TODO: write me
+        self.check_submittable()
+        self.sync_scripts()
+
+        # import pickle
+        # with self._cluster.cwd.joinpath('TEST_PICKLE.p').open('wb') as f:
+        #     pickle.dump(self, f)
+        # pass
+
+    def sync_scripts(self):
+        for script in (self.pre_submit_script, self.job_script, self.collector_script):
+            if script is not None:
+                script.sync()
+
 
 
 
@@ -598,26 +632,26 @@ class Project:
 ################################################################################
 
 
-class SimpleDefaultDict(dict):
-    # ADD DOCSTRING
-    """
-    Similar to collections.defaultdict, but doesn't add missing keys.
-    Accepts an additional keyword-only argument 'default' that may
-    be either a default value to return for missing keys, or a
-    callable that accepts the missing key as an argument
-    """
-    def __init__(self, *arg, default='?', **kwargs):
-        # ADD DOCSTRING
-        if len(arg) > 1:
-            raise TypeError(
-                f"{self.__class__.__name__} expected at most 1 argument, got "
-                f"{len(arg)}"
-            )
-        super().__init__(*arg, **kwargs)
-        if callable(default):
-            self.default = default
-        else:
-            self.default = lambda key: default
-
-    def __missing__(self, key):
-        return self.default(key)
+# class SimpleDefaultDict(dict):
+#     # ADD DOCSTRING
+#     """
+#     Similar to collections.defaultdict, but doesn't add missing keys.
+#     Accepts an additional keyword-only argument 'default' that may
+#     be either a default value to return for missing keys, or a
+#     callable that accepts the missing key as an argument
+#     """
+#     def __init__(self, *arg, default='?', **kwargs):
+#         # ADD DOCSTRING
+#         if len(arg) > 1:
+#             raise TypeError(
+#                 f"{self.__class__.__name__} expected at most 1 argument, got "
+#                 f"{len(arg)}"
+#             )
+#         super().__init__(*arg, **kwargs)
+#         if callable(default):
+#             self.default = default
+#         else:
+#             self.default = lambda key: default
+#
+#     def __missing__(self, key):
+#         return self.default(key)

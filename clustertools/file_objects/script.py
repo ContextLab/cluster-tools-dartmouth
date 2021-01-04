@@ -5,7 +5,6 @@ from typing import Optional, TYPE_CHECKING
 from clustertools.file_objects.synced_file import SyncedFile
 
 if TYPE_CHECKING:
-    from clustertools.cluster import Cluster
     from clustertools.project.project import Project
     from clustertools.shared.typing import PathLike
 

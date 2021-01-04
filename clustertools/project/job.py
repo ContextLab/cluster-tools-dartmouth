@@ -23,6 +23,8 @@ class Job:
 
 class JobList(list):
     # ADD DOCSTRING
+    # purpose is for lazy evaluation of 'Job' objects to save memory for
+    # 'Project's with very high numbers of jobs
     # TODO: make this better... a lot better...
     def __init__(self, project: Project):
         self._project = project
