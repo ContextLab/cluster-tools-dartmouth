@@ -28,3 +28,9 @@ from clustertools.cluster import Cluster
 
 # TODO: decide whether to make numpy a requirement, optional requirement,
 #  tests_require (for static type checking only), or leave out altogether
+
+# TODO: make project_config.notifications.user a list to support option
+#  for multiple users can be notified
+
+# TODO(?): expose all options for #PBS -m directive for all job types
+#  rather than only offering most useful ones (project_config)
