@@ -26,6 +26,10 @@ if TYPE_CHECKING:
     from clustertools.shared.typing import PathLike, WallTimeStr
 
 
+# TODO: add logic so that submitter is only used when there is >1 job to
+#  be submitted
+# TODO: allow pre-submit and collector jobs to have different n_nodes,
+#  ppn, etc. from runner jobs
 # TODO: write checks that will run run right before submitting
 # TODO: add methods that call q___ (qdel, qsig, etc.) from pbs man page
 # TODO: remember to include -C self.directive_prefix flag in submit cmd
@@ -309,10 +313,17 @@ class Project:
 
     @property
     def queue(self) -> Literal['default', 'largeq']:
-        return self.config.pbs_params.queue
+        q = self.config.pbs_params.queue
+        if q == 'INFER':
+            # Dartmouth Discovery cluster policy: batches of >600 jobs
+            # should be submitted to largeq
+            # PyCharm bug: Literals aren't detected in ternaries
+            # noinspection PyTypeChecker
+            return 'largeq' if len(self.jobs) > 600 else 'default'
+        return q
 
     @queue.setter
-    def queue(self, new_queue: Literal['default', 'largeq']) -> None:
+    def queue(self, new_queue: Literal['default', 'largeq', 'INFER']) -> None:
         self.config.pbs_params.queue = new_queue
 
     @property
@@ -734,8 +745,20 @@ class Project:
         #  and trying to determine number of jobs, accounting for
         #  restarts of monitor, resubmissions, etc.
         self.check_submittable()
-        self.sync_scripts()
-        self.write_wrappers()
+        # upload new or edited scripts and write wrapper scripts
+        if self.pre_submit is not None:
+            self.pre_submit.script.sync()
+            self._cluster.write_text(path=self.pre_submit.wrapper_path,
+                                     data=self.pre_submit.wrapper)
+        self._cluster.write_text(path=self.submitter.wrapper_path,
+                                 data=self.submitter.wrapper)
+        self._cluster.write_text(path=self.monitor.wrapper_path,
+                                 data=self.monitor.wrapper)
+        self.job_script.sync()
+        if self.collector is not None:
+            self.collector.script.sync()
+            self._cluster.write_text(path=self.collector.wrapper_path,
+                                     data=self.collector.wrapper)
 
         # import pickle
         # with self._cluster.cwd.joinpath('TEST_PICKLE.p').open('wb') as f:
@@ -743,13 +766,20 @@ class Project:
         # pass
 
     def sync_scripts(self):
+        #  ADD DOCSTRING
         for script in (self.pre_submit_script, self.job_script, self.collector_script):
             if script is not None:
                 script.sync()
 
     def write_wrappers(self):
+        # ADD DOCSTRING - Creates remote wrapper scripts for submitter &
+        #  pre_submit jobs only. More efficient for submitter to write
+        #  wrapper scripts for runner, monitor, & collector jobs
+        if self.pre_submit is not None:
+            self._cluster.write_text(path=self.pre_submit.wrapper_path,
+                                     data=self.pre_submit.wrapper)
+        self._cluster.write_text(path=self.submitter.wrapper_path,
+                                 data=self.submitter.wrapper)
+
         ...
-        # Creates remote wrapper scripts for submitter & pre_submit jobs
-        # only. More efficient for submitter to write wrapper scripts
-        # for runner, monitor, & collector jobs
 
