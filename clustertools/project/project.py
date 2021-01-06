@@ -2,27 +2,23 @@ from __future__ import annotations
 
 import itertools
 from pathlib import Path, PurePosixPath
-from string import Template
 from typing import (Any,
                     Dict,
                     List,
                     Literal,
+                    NoReturn,
                     Optional,
                     Sequence,
                     Tuple,
                     TYPE_CHECKING,
                     Union)
 
+from clustertools import CLUSTERTOOLS_TEMPLATES_DIR
 from clustertools.file_objects.project_config import ProjectConfig
-from clustertools.file_objects.script import ProjectScript
-from clustertools.project.job import JobList
+from clustertools.file_objects.project_script import ProjectScript
+from clustertools.project.job import Job, JobList
 from clustertools.shared.exceptions import (ClusterToolsProjectError,
                                             ProjectConfigurationError)
-from clustertools.templates.job_wrapper import (ENV_ACTIVATE_COMMAND,
-                                                ENV_DEACTIVATE_COMMAND,
-                                                MODULE_LOAD_COMMAND,
-                                                VAR_EXPORT_DIRECTIVE,
-                                                WRAPPER_TEMPLATE)
 
 if TYPE_CHECKING:
     from clustertools.cluster import Cluster
@@ -30,14 +26,11 @@ if TYPE_CHECKING:
     from clustertools.shared.typing import PathLike, WallTimeStr
 
 
-job_params_types = Union[Sequence[Any], Sequence[Sequence[Any]]]
-
-
 # TODO: write checks that will run run right before submitting
 # TODO: add methods that call q___ (qdel, qsig, etc.) from pbs man page
 # TODO: remember to include -C self.directive_prefix flag in submit cmd
-# TODO: support keyword arguments to jobs via exporting as env variables,
-#  types are: Union[Sequence[Sequence[Union[str, int, float]]],
+# TODO(?): support keyword arguments to jobs via exporting as env
+#  variables, types are: Union[Sequence[Sequence[Union[str, int, float]]],
 #                   Sequence[Dict[str, Union[str, int, float]]],
 #                   Dict[Union[str, int], Sequence[str, int, float]]]
 
@@ -46,7 +39,7 @@ class Project:
     # ADD DOCSTRING
     # TODO: allow passing scripts as strings? *should* be doable, if
     #  limited in functionality...
-    inferred_cmd_wrappers = {
+    inferred_executables = {
         '.jar': 'java -jar',
         '.jl': 'julia',
         '.m': 'matlab',
@@ -71,7 +64,7 @@ class Project:
             pre_submit_script: Optional[PathLike] = None,
             job_script: Optional[PathLike] = None,
             collector_script: Optional[PathLike] = None,
-            job_params: Optional[job_params_types] = None,
+            job_params: Optional[Union[Sequence[Any], Sequence[Sequence[Any]]]] = None,
             params_as_matrix: bool = False,
             *,
             # CONFIG FIELDS SETTABLE VIA CONSTRUCTOR
@@ -79,7 +72,7 @@ class Project:
             # **kwargs, but IMO it's helpful to have them visible the
             # method signature & docstring
             job_basename: Optional[str] = None,
-            cmd_wrapper: Optional[str] = None,
+            job_executable: Optional[str] = None,
             modules: Optional[List[str]] = None,
             env_activate_cmd: Optional[str] = None,
             env_deactivate_cmd: Optional[str] = None,
@@ -91,14 +84,17 @@ class Project:
             ppn: Optional[int] = None,
             wall_time: Optional[WallTimeStr] = None,
             user_to_notify: Optional[str] = None,
-            notify_job_start: Optional[bool] = None,
-            notify_all_start: Optional[bool] = None,
-            notify_job_finish: Optional[bool] = None,
-            notify_all_finish: Optional[bool] = None,
-            notify_job_abort: Optional[bool] = None,
-            notify_job_error: Optional[bool] = None,
+            notify_all_submitted: Optional[bool] = None,
+            notify_all_finished: Optional[bool] = None,
+            notify_job_started: Optional[bool] = None,
+            notify_job_finished: Optional[bool] = None,
+            notify_job_aborted: Optional[bool] = None,
+            notify_job_failed: Optional[bool] = None,
+            notify_collector_finished: Optional[bool] = None,
             auto_monitor_jobs: Optional[bool] = None,
-            auto_resubmit: Optional[bool] = None
+            auto_resubmit_aborted: Optional[bool] = None,
+            max_resubmit_attempts: Optional[int] = None,
+            auto_submit_collector: Optional[bool] = None,
     ) -> None:
         self._name = name
         self._cluster = cluster
@@ -106,7 +102,7 @@ class Project:
         self.config = ProjectConfig(self)
         config_field_updates = {
             'job_basename': job_basename,
-            'cmd_wrapper': cmd_wrapper,
+            'job_executable': job_executable,
             'modules': modules,
             'env_activate_cmd': env_activate_cmd,
             'env_deactivate_cmd': env_deactivate_cmd,
@@ -117,19 +113,22 @@ class Project:
             'ppn': ppn,
             'wall_time': wall_time,
             'user': user_to_notify,
-            'job_start': notify_job_start,
-            'all_start': notify_all_start,
-            'job_finish': notify_job_finish,
-            'all_finish': notify_all_finish,
-            'job_abort': notify_job_abort,
-            'job_error': notify_job_error,
+            'all_submitted': notify_all_submitted,
+            'all_finished': notify_all_finished,
+            'job_started': notify_job_started,
+            'job_finished': notify_job_finished,
+            'job_aborted': notify_job_aborted,
+            'job_failed': notify_job_failed,
+            'collector_finished': notify_collector_finished,
             'auto_monitor_jobs': auto_monitor_jobs,
-            'auto_resubmit_jobs': auto_resubmit
+            'auto_resubmit_aborted': auto_resubmit_aborted,
+            'max_resubmit_attempts': max_resubmit_attempts,
+            'auto_submit_collector': auto_submit_collector
         }
         config_field_updates = {
             field: val
             for field, val in config_field_updates.items()
-                if val is not None and val != self.config[field]
+            if val is not None and val != self.config[field]
         }
         if any(config_field_updates):
             self.config.update(config_field_updates)
@@ -143,26 +142,32 @@ class Project:
                            self.output_datadir):
             self._cluster.mkdir(remote_dir, parents=True, exist_ok=True)
         # initialize script objects
-        self._raw_wrapper_template = WRAPPER_TEMPLATE
+        self._init_submitter()
+        if self.auto_monitor_jobs:
+            self._init_monitor()
+        else:
+            self._monitor_script: Optional[ProjectScript] = None
+            self._monitor: Optional[Job] = None
         if pre_submit_script is None:
-            self._pre_submit_script = None
+            self._pre_submit_script: Optional[ProjectScript] = None
+            self._pre_submit: Optional[Job] = None
         else:
             self.pre_submit_script = pre_submit_script
         if job_script is None:
-            self._job_script = None
+            self._job_script: Optional[ProjectScript] = None
         else:
             self.job_script = job_script
         if collector_script is None:
-            self._collector_script = None
+            self._collector_script: Optional[ProjectScript] = None
+            self._collector: Optional[Job] = None
         else:
             self.collector_script = collector_script
-
         # initialize job params
         self._raw_job_params = job_params
         self._params_as_matrix = params_as_matrix
+        self.jobs = JobList(project=self)
         if job_params is None:
-            self._job_params = None
-            self.jobs: Optional[JobList] = None
+            self._job_params: Optional[List[Tuple[str]]] = None
         else:
             self.parametrize_jobs(job_params, as_matrix=params_as_matrix)
 
@@ -243,15 +248,15 @@ class Project:
         self.config.general.job_basename = new_name
 
     @property
-    def cmd_wrapper(self) -> str:
-        cmd_wrapper = self.config.general.cmd_wrapper
-        if cmd_wrapper == 'INFER' and self.job_script is not None:
-            return self._infer_cmd_wrapper()
-        return cmd_wrapper
+    def job_executable(self) -> str:
+        job_executable = self.config.general.job_executable
+        if job_executable == 'INFER' and self.job_script is not None:
+            return self._infer_job_executable()
+        return job_executable
 
-    @cmd_wrapper.setter
-    def cmd_wrapper(self, new_cmd) -> None:
-        self.config.general.cmd_wrapper = new_cmd
+    @job_executable.setter
+    def job_executable(self, new_cmd) -> None:
+        self.config.general.job_executable = new_cmd
 
     @property
     def modules(self) -> MonitoredList:
@@ -286,7 +291,7 @@ class Project:
     @use_global_environ.setter
     def use_global_environ(self, use: bool) -> None:
         self.config.runtime_environment.use_global_environ = use
-        
+
     @property
     def environ(self) -> MonitoredEnviron:
         return self.config.runtime_environment.environ
@@ -344,52 +349,60 @@ class Project:
         self.config.notifications.user = new_user
 
     @property
-    def notify_job_start(self) -> bool:
-        return self.config.notification.job_start
+    def notify_all_submitted(self) -> bool:
+        return self.config.notifications.all_submitted
 
-    @notify_job_start.setter
-    def notify_job_start(self, pref: bool) -> None:
-        self.config.notification.job_start = pref
-
-    @property
-    def notify_all_start(self) -> bool:
-        return self.config.notification.all_start
-
-    @notify_all_start.setter
-    def notify_all_start(self, pref: bool) -> None:
-        self.config.notification.all_start = pref
+    @notify_all_submitted.setter
+    def notify_all_submitted(self, pref: bool) -> None:
+        self.config.notifications.all_submitted = pref
 
     @property
-    def notify_job_finish(self) -> bool:
-        return self.config.notification.job_finish
+    def notify_all_finished(self) -> bool:
+        return self.config.notifications.all_finished
 
-    @notify_job_finish.setter
-    def notify_job_finish(self, pref: bool) -> None:
-        self.config.notification.job_finish = pref
-
-    @property
-    def notify_all_finish(self) -> bool:
-        return self.config.notification.all_finished
-
-    @notify_all_finish.setter
-    def notify_all_finish(self, pref: bool) -> None:
-        self.config.notification.all_finished = pref
+    @notify_all_finished.setter
+    def notify_all_finished(self, pref: bool) -> None:
+        self.config.notifications.all_finished = pref
 
     @property
-    def notify_job_abort(self) -> bool:
-        return self.config.notification.job_aborted
+    def notify_job_started(self) -> bool:
+        return self.config.notifications.job_started
 
-    @notify_job_abort.setter
-    def notify_job_abort(self, pref: bool) -> None:
-        self.config.notification.job_aborted = pref
+    @notify_job_started.setter
+    def notify_job_started(self, pref: bool) -> None:
+        self.config.notifications.job_started = pref
 
     @property
-    def notify_job_error(self) -> bool:
-        return self.config.notifications.job_error
+    def notify_job_finished(self) -> bool:
+        return self.config.notifications.job_finished
 
-    @notify_job_error.setter
-    def notify_job_error(self, pref):
-        self.config.notifications.job_error = pref
+    @notify_job_finished.setter
+    def notify_job_finished(self, pref: bool) -> None:
+        self.config.notifications.job_finished = pref
+
+    @property
+    def notify_job_aborted(self) -> bool:
+        return self.config.notifications.job_aborted
+
+    @notify_job_aborted.setter
+    def notify_job_aborted(self, pref: bool) -> None:
+        self.config.notifications.job_aborted = pref
+
+    @property
+    def notify_job_failed(self) -> bool:
+        return self.config.notifications.job_failed
+
+    @notify_job_failed.setter
+    def notify_job_failed(self, pref: bool) -> None:
+        self.config.notifications.job_failed = pref
+
+    @property
+    def notify_collector_finished(self) -> bool:
+        return self.config.notifications.collector_finished
+
+    @notify_collector_finished.setter
+    def notify_collector_finished(self, pref: bool) -> None:
+        self.config.notifications.collector_finished = pref
 
     @property
     def auto_monitor_jobs(self) -> bool:
@@ -398,106 +411,172 @@ class Project:
     @auto_monitor_jobs.setter
     def auto_monitor_jobs(self, pref: bool) -> None:
         self.config.monitoring.auto_monitor_jobs = pref
+        if pref is True:
+            self._init_monitor()
+        else:
+            self._monitor_script = None
+            self._monitor = None
 
     @property
-    def auto_resubmit(self) -> bool:
+    def auto_resubmit_aborted(self) -> bool:
         return self.config.monitoring.auto_resubmit_aborted
 
-    @auto_resubmit.setter
-    def auto_resubmit(self, pref: bool) -> None:
+    @auto_resubmit_aborted.setter
+    def auto_resubmit_aborted(self, pref: bool) -> None:
         self.config.monitoring.auto_resubmit_aborted = pref
+
+    @property
+    def max_resubmit_attempts(self) -> bool:
+        return self.config.monitoring.max_resubmit_attempts
+
+    @max_resubmit_attempts.setter
+    def max_resubmit_attempts(self, max_retries: int) -> None:
+        self.config.monitoring.max_resubmit_attempts = max_retries
+
+    @property
+    def auto_submit_collector(self) -> bool:
+        return self.config.monitoring.auto_submit_collector
+
+    @auto_submit_collector.setter
+    def auto_submit_collector(self, pref: bool) -> None:
+        self.config.monitoring.auto_submit_collector = pref
 
     ##########################################################
     #                SCRIPT OBJECT PROPERTIES                #
     ##########################################################
     @property
-    def pre_submit_script(self) -> ProjectScript:
+    def pre_submit(self) -> Optional[Job]:
+        return self._pre_submit
+
+    @pre_submit.setter
+    def pre_submit(self, *_, **__) -> NoReturn:
+        raise AttributeError(
+            "'project.pre_submit' attribute does not support direct assignment. "
+            "Set 'project.pre_submit_script' to the path to your local script "
+            "and the pre-submit 'Job' object will be regenerated automatically."
+        )
+
+    @property
+    def pre_submit_script(self) -> Optional[ProjectScript]:
         return self._pre_submit_script
 
     @pre_submit_script.setter
-    def pre_submit_script(self, script_path: PathLike) -> None:
-        local_path = Path(script_path).resolve(strict=True)
-        file_ext = local_path.suffix
-        remote_path = self.script_dir.joinpath(f'pre_submit').with_suffix(file_ext)
-        self._pre_submit_script = ProjectScript(project=self,
-                                                local_path=local_path,
-                                                remote_path=remote_path)
+    def pre_submit_script(self, script_path: Optional[PathLike]) -> None:
+        # TODO: this doesn't handle a pre-submit script that takes
+        #  parameters. Can't think of a good reason one would though,
+        #  so fixing is low priority
+        if script_path is None:
+            # setting to None removes the pre-submit job
+            self._pre_submit_script = self._pre_submit = None
+        else:
+            local_path = Path(script_path).resolve(strict=True)
+            file_ext = local_path.suffix
+            remote_path = self.script_dir.joinpath(f'pre_submit').with_suffix(file_ext)
+            pre_submit_script = ProjectScript(project=self,
+                                              local_path=local_path,
+                                              remote_path=remote_path)
+            self._pre_submit_script = pre_submit_script
+            self._pre_submit = Job(project=self,
+                                   script=pre_submit_script,
+                                   kind='pre_submit')
 
     @property
-    def job_script(self) -> ProjectScript:
+    def submitter(self) -> Optional[Job]:
+        return self._submitter
+
+    @submitter.setter
+    def submitter(self, *_, **__) -> NoReturn:
+        raise AttributeError(
+            "'project.submitter' attribute does not support assignment"
+        )
+
+    @property
+    def submitter_script(self) -> Optional[ProjectScript]:
+        return self._submitter_script
+
+    @submitter_script.setter
+    def submitter_script(self, *_, **__) -> NoReturn:
+        raise AttributeError("Built-in job submitter script is not editable")
+
+    @property
+    def monitor(self) -> Optional[Job]:
+        return self._monitor
+
+    @monitor.setter
+    def monitor(self, *_, **__) -> NoReturn:
+        raise AttributeError(
+            "'project.monitor' attribute does not support assignment"
+        )
+
+    @property
+    def monitor_script(self) -> ProjectScript:
+        return self._monitor_script
+
+    @monitor_script.setter
+    def monitor_script(self, *_, **__) -> NoReturn:
+        raise AttributeError("Built-in job monitoring script is not editable")
+
+    @property
+    def job_script(self) -> Optional[ProjectScript]:
         return self._job_script
 
     @job_script.setter
-    def job_script(self, script_path: PathLike) -> None:
-        local_path = Path(script_path).resolve(strict=True)
-        file_ext = local_path.suffix
-        remote_path = self.script_dir.joinpath(f'runner').with_suffix(file_ext)
-        self._job_script = ProjectScript(project=self,
-                                         local_path=local_path,
-                                         remote_path=remote_path)
+    def job_script(self, script_path: Optional[PathLike]) -> None:
+        if script_path is None:
+            self._job_script = None
+        else:
+            local_path = Path(script_path).resolve(strict=True)
+            file_ext = local_path.suffix
+            remote_path = self.script_dir.joinpath(f'runner').with_suffix(file_ext)
+            self._job_script = ProjectScript(project=self,
+                                             local_path=local_path,
+                                             remote_path=remote_path)
+        # any change to job script means JobList cache needs to be cleared
+        self.jobs.clear_cache()
 
     @property
-    def collector_script(self) -> ProjectScript:
+    def collector(self) -> Optional[Job]:
+        return self._collector
+
+    @collector.setter
+    def collector(self, *_, **__) -> NoReturn:
+        raise AttributeError(
+            "'project.collector' attribute does not support direct assignment. "
+            "Set 'project.collector_script' to the path to your local script "
+            "and the collector 'Job' object will be regenerated automatically."
+        )
+
+    @property
+    def collector_script(self) -> Optional[ProjectScript]:
         return self._collector_script
 
     @collector_script.setter
-    def collector_script(self, script_path: PathLike) -> None:
-        local_path = Path(script_path).resolve(strict=True)
-        file_ext = local_path.suffix
-        remote_path = self.script_dir.joinpath(f'collector').with_suffix(file_ext)
-        self._collector_script = ProjectScript(project=self,
-                                               local_path=local_path,
-                                               remote_path=remote_path)
+    def collector_script(self, script_path: Optional[PathLike]) -> None:
+        if script_path is None:
+            self._collector = self._collector_script = None
+        else:
+            local_path = Path(script_path).resolve(strict=True)
+            file_ext = local_path.suffix
+            remote_path = self.script_dir.joinpath(f'collector').with_suffix(file_ext)
+            collector_script = ProjectScript(project=self,
+                                             local_path=local_path,
+                                             remote_path=remote_path)
+            self._collector_script = collector_script
+            self._collector = Job(project=self,
+                                  script=collector_script,
+                                  kind='collector')
 
     @property
-    def wrapper_template(self):
-        # first, fill the top-level template with the correct
-        # sub-templates
-        subtemplates = dict()
-        if any(self.environ):
-            subtemplates['environ_exporter'] = VAR_EXPORT_DIRECTIVE.template
-        else:
-            subtemplates['environ_exporter'] = ""
-        if any(self.modules):
-            subtemplates['module_loader'] = MODULE_LOAD_COMMAND.template
-        else:
-            subtemplates['module_loader'] = ""
-        if self.env_activate_cmd or self.env_deactivate_cmd:
-            subtemplates['virtual_env_activator'] = ENV_ACTIVATE_COMMAND
-            subtemplates['virtual_env_deactivator'] = ENV_DEACTIVATE_COMMAND
-        else:
-            subtemplates['virtual_env_activator'] = ""
-            subtemplates['virtual_env_deactivator'] = ""
-        wrapper_template = Template(self._raw_wrapper_template.safe_substitute(subtemplates))
-        # next, fill non-job-specific fields
-        substitutions = {
-            'directive_prefix': self.directive_prefix,
-            'job_basename': self.job_basename,
-            'project_root': self.root_dir,
-            'stdout_dir': self.stdout_dir,
-            'stderr_dir': self.stderr_dir,
-            'environ_vars': ','.join('='.join(i) for i in self.environ.items()),
-            'queue': self.queue,
-            'n_nodes': self.n_nodes,
-            'ppn': self.ppn,
-            'wall_time': self.wall_time,
-            'user': self.user_to_notify,
-            # 'mail_options': self._get_mail_options(),
-            'modules': ' '.join(self.modules),
-            'activate_cmd': self.env_activate_cmd,
-            'cmd_wrapper': self.cmd_wrapper,
-            'deactivate_cmd': self.env_deactivate_cmd
-        }
-
-
-    @property
-    def job_params(self) -> List[Tuple[str]]:
+    def job_params(self) -> Optional[List[Tuple[str]]]:
         return self._job_params
 
     @job_params.setter
-    def job_params(self, new_params: job_params_types) -> None:
+    def job_params(
+            self,
+            new_params: Union[Sequence[Any], Sequence[Sequence[Any]]]
+    ) -> None:
         self.parametrize_jobs(new_params)
-        
+
     @property
     def params_as_matrix(self) -> bool:
         return self._params_as_matrix
@@ -505,6 +584,7 @@ class Project:
     @params_as_matrix.setter
     def params_as_matrix(self, as_matrix: bool) -> None:
         if as_matrix != self._params_as_matrix:
+            # JobList
             if self._raw_job_params is None:
                 # can't parse job params if they haven't been provided yet
                 self._params_as_matrix = as_matrix
@@ -523,26 +603,56 @@ class Project:
     ##########################################################
     #                  MISC. HELPER METHODS                  #
     ##########################################################
-    def _get_mail_options(self) -> str:
-        mail_option_str = ''
-        if self.notify_job_abort:
-            mail_option_str += 'a'
-        if self.notify_job_start:
-            mail_option_str += 'b'
-        if self.notify_job_finish:
-            mail_option_str += 'e'
-        if self.notify_job_error:
-            mail_option_str += 'f'
-        if  mail_option_str == '':
-            mail_option_str = 'n'
-        return mail_option_str
-
-    def _infer_cmd_wrapper(self) -> str:
+    def _infer_job_executable(self) -> str:
         # TODO: add more options
-        jobscript_ext = self.job_script.local_path.suffix
-        cmd_wrappers = Project.inferred_cmd_wrappers
-        cmd_wrappers['.sh'] = self._cluster.executable
-        return cmd_wrappers.get(jobscript_ext, 'INFER')
+        suffix = self.job_script.local_path.suffix
+        inferred_executables = Project.inferred_executables
+        inferred_executables['.sh'] = self._cluster.executable
+        return inferred_executables.get(suffix, 'INFER')
+
+    # the "submitter" and "monitor" Job & ProjectScript objects are
+    # slightly different from the others. First, their scripts' contents
+    # are agnostic to the purpose of the actual project/jobs. Their
+    # purpose is to submit single jobs that handle long-running tasks
+    # (i.e., submitting all other jobs and monitoring job progress) so
+    # the local interpreter isn't blocked indefinitely. Because of this,
+    # they are not meant to be editable and are read-only on the Project
+    # object (to remove the monitor job, set the 'auto_monitor_jobs'
+    # attribute to False. It is of course possible to edit these jobs'
+    # behavior by editing their job scripts directly, this is not
+    # officially supported and you should use caution in doing so.
+    # Second, because their scripts' contents don't depend on the
+    # project, we only need to upload a single remote copy of each for
+    # all projects to share. This is done when 'clustertools' connects
+    # to a new host for the first time *after which the scripts are
+    # assumed to be present* to save time during job submission. The
+    # remote copies are stored in the remote global config directory
+    # ($HOME/.clustertools).
+    def _init_monitor(self) -> None:
+        local_path = CLUSTERTOOLS_TEMPLATES_DIR.joinpath('monitor.py')
+        remote_path = self._cluster.config.remote_path.parent.joinpath('monitor.py')
+        monitor_script = ProjectScript(project=self,
+                                       local_path=local_path,
+                                       remote_path=remote_path)
+        self._monitor_script = monitor_script
+        # TODO: this should take params based on values from
+        #  ['monitoring'] section of config... will also need to update
+        #  setters to update params on Job object... might be easier to
+        #  set them just once based on config field at submission time
+        self._monitor = Job(project=self, script=monitor_script, kind='monitor')
+
+    def _init_submitter(self) -> None:
+        local_path = CLUSTERTOOLS_TEMPLATES_DIR.joinpath('submitter.py')
+        remote_path = self._cluster.config.remote_path.parent.joinpath('submitter.py')
+        submitter_script = ProjectScript(project=self,
+                                         local_path=local_path,
+                                         remote_path=remote_path)
+        self._submitter_script = submitter_script
+        # NOTE: If a pre-submit job is present, the submitter job's
+        # wrapper script will take the pre-submit job's jobid as a
+        # param, its Job object will show self.params=None until the
+        # pre-submit job is queued and its jobid is available
+        self._submitter = Job(project=self, script=submitter_script, kind='submitter')
 
     # def configure(self):
     #     # ADD DOCSTRING - walks user through setting parameters
@@ -553,6 +663,8 @@ class Project:
     def check_submittable(self) -> bool:
         # ADD DOCSTRING
         # returns True if all requirements to submit jobs are met
+        # TODO: add check for whether or not self.pre_submit, jobs, and
+        #  self.collector .expects_args
         if self.job_script is None:
             raise ClusterToolsProjectError(
                 "No job script specified. Set 'project.job_script' to the path "
@@ -579,17 +691,17 @@ class Project:
                 "provide both a command to activate/enter the environment and "
                 "a command to deactivate/exit it afterward"
             )
-        if self.cmd_wrapper == 'INFER':
+        if self.job_executable == 'INFER':
             raise ProjectConfigurationError(
                 "Unable to infer a command for running a job script ending in "
                 f"'{self.job_script.local_path.suffix}'. Please set "
-                "'project.cmd_wrapper' before submitting jobs"
+                "'project.job_executable' before submitting jobs"
             )
         return True
 
     def parametrize_jobs(
             self,
-            params: job_params_types,
+            params: Union[Sequence[Any], Sequence[Sequence[Any]]],
             *,
             as_matrix: Optional[bool] = None
     ) -> None:
@@ -604,16 +716,26 @@ class Project:
         if as_matrix:
             params = list(itertools.product(*params))
         self._job_params = params
-        self.jobs = JobList(self)
+        # clear JobList cache of Job objects created with old params
+        self.jobs.clear_cache()
 
     ##########################################################
     #                 JOB SUBMISSION METHODS                 #
     ##########################################################
-    # def submit(self):
+    def submit(self):
         # ADD DOCSTRING
         # TODO: write me
+        # TODO: if pre-submit script, get its jobid and pass it as "$1"
+        #  to submitter so it can be used with #PBS -W
+        # TODO: (in submitter script) if collector is passed and
+        #  config['auto_submit_collector'] is true, apply user hold to
+        #  collector and have monitor script remove it once all jobs
+        #  finish successfully. More straightforward than using #PBS -W
+        #  and trying to determine number of jobs, accounting for
+        #  restarts of monitor, resubmissions, etc.
         self.check_submittable()
         self.sync_scripts()
+        self.write_wrappers()
 
         # import pickle
         # with self._cluster.cwd.joinpath('TEST_PICKLE.p').open('wb') as f:
@@ -625,33 +747,9 @@ class Project:
             if script is not None:
                 script.sync()
 
+    def write_wrappers(self):
+        ...
+        # Creates remote wrapper scripts for submitter & pre_submit jobs
+        # only. More efficient for submitter to write wrapper scripts
+        # for runner, monitor, & collector jobs
 
-
-
-
-################################################################################
-
-
-# class SimpleDefaultDict(dict):
-#     # ADD DOCSTRING
-#     """
-#     Similar to collections.defaultdict, but doesn't add missing keys.
-#     Accepts an additional keyword-only argument 'default' that may
-#     be either a default value to return for missing keys, or a
-#     callable that accepts the missing key as an argument
-#     """
-#     def __init__(self, *arg, default='?', **kwargs):
-#         # ADD DOCSTRING
-#         if len(arg) > 1:
-#             raise TypeError(
-#                 f"{self.__class__.__name__} expected at most 1 argument, got "
-#                 f"{len(arg)}"
-#             )
-#         super().__init__(*arg, **kwargs)
-#         if callable(default):
-#             self.default = default
-#         else:
-#             self.default = lambda key: default
-#
-#     def __missing__(self, key):
-#         return self.default(key)
