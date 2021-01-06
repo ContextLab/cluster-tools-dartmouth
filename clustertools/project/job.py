@@ -46,7 +46,7 @@ class Job:
             self,
             project: Project,
             script: ProjectScript,
-            kind: Literal['pre_submit', 'submitter', 'runner', 'monitor', 'collector'],
+            kind: Literal['pre_submit', 'submitter', 'runner', 'collector', 'monitor'],
             params: Optional[Sequence] = None
     ) -> None:
         # ADD DOCSTRING
@@ -97,8 +97,7 @@ class Job:
     @property
     def wrapper(self):
         proj = self._project
-        # first, fill the top-level template with the correct
-        # sub-templates
+        # first, fill in fields whose values contain configurable fields
         subtemplates = dict()
         if proj.pre_submit_script is not None and self.kind == 'submitter':
             # jobid of pre_submit job will get passed to submit script ("$1")
@@ -119,27 +118,13 @@ class Job:
             cmd = """echo "loading modules: ${modules}"
             module load ${modules}
             """
-            subtemplates['module_load_cmd'] = '\n'.join(map(str.lstrip, cmd.splitlines()))
+            cmd_fmt = '\n'.join(map(str.lstrip, cmd.splitlines()))
+            subtemplates['module_load_cmd'] = cmd_fmt
         else:
             subtemplates['module_load_cmd'] = ''
-        # only have to check one of the two virtual environment commands,
-        # 'Project.check_submittable()' ensures either both or neither
-        # is set
-        if proj.env_activate_cmd:
-            a_cmd = f"""echo "activating environment
-            {proj.env_activate_cmd}
-            """
-            d_cmd = f"""
-            echo "deactivating environment"
-            {proj.env_deactivate_cmd}"""
-            subtemplates['env_activate_cmd'] = '\n'.join(map(str.lstrip, a_cmd.splitlines()))
-            subtemplates['env_deactivate_cmd'] = '\n'.join(map(str.lstrip, d_cmd.splitlines()))
-        else:
-            subtemplates['env_activate_cmd'] = ''
-            subtemplates['env_deactivate_cmd'] = ''
-
         full_wrapper_str = Job._wrapper_template.safe_substitute(subtemplates)
         full_wrapper_template = Template(full_wrapper_str)
+        # fill in remaining fields
         field_vals = {
             'directive_prefix': proj.directive_prefix,
             'job_name': self.name,
@@ -153,13 +138,51 @@ class Job:
             'user': proj.user_to_notify,
             'job_type': self.kind,
             'job_executable': proj.job_executable,
-            # 'mail_options':
             'environ_fmt': ','.join('='.join(item) for item in proj.environ.items()),
-            'modules': ' '.join(proj.modules),
-            # TODO: finish this
-
-
+            'modules': ' '.join(proj.modules)
         }
+        # logic for constructing #PBS -m option str based on project
+        # config values and job type
+        # this could be written in fewer lines, but this way results in
+        # fewer namespace lookups, which could potentially add up to
+        # something significant for extremely long JobLists
+        # NOTE: the 'all_finished' config field affects params passed to monitor job, rather than
+        mail_opts = ''
+        if self.kind == 'submitter' and proj.notify_all_submitted:
+            mail_opts = 'e'
+        elif self.kind == 'collector' and proj.notify_collector_finished:
+            mail_opts = 'e'
+        elif self.kind == 'runner':
+            if proj.notify_job_started:
+                mail_opts += 'b'
+            if proj.notify_job_finished:
+                mail_opts += 'e'
+            if proj.notify_job_aborted:
+                mail_opts += 'a'
+            if proj.notify_job_failed:
+                mail_opts += 'f'
+        if mail_opts == '':
+            # no mail will be sent
+            mail_opts = 'n'
+        field_vals['mail_options'] = mail_opts
+        # only have to check one of the two virtual environment commands,
+        # 'Project.check_submittable()' ensures either both or neither
+        # is set
+        if proj.env_activate_cmd:
+            a_cmd = f"""echo "activating environment
+                    {proj.env_activate_cmd}
+                    """
+            d_cmd = f"""
+                    echo "deactivating environment"
+                    {proj.env_deactivate_cmd}"""
+            a_cmd_fmt = '\n'.join(map(str.lstrip, a_cmd.splitlines()))
+            d_cmd_fmt = '\n'.join(map(str.lstrip, d_cmd.splitlines()))
+            field_vals['env_activate_cmd'] = a_cmd_fmt
+            field_vals['env_deactivate_cmd'] = d_cmd_fmt
+        else:
+            field_vals['env_activate_cmd'] = ''
+            field_vals['env_deactivate_cmd'] = ''
+        return full_wrapper_template.substitute(field_vals)
 
 
 class JobListCache(dict):
