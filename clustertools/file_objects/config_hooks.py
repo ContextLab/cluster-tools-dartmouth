@@ -3,12 +3,12 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, TYPE_CHECKING
 
-from clustertools.shared.helpers import bindable
+from clustertools.shared.helpers import bindable, validate_walltime
 
 if TYPE_CHECKING:
     from clustertools.file_objects.base_config import BaseConfig
     from clustertools.file_objects.global_config import GlobalConfig
-    from clustertools.shared.typing import validate_walltime, WallTimeStr
+    from clustertools.shared.typing import WallTimeStr
 
 
 ########################################################################
