@@ -8,18 +8,34 @@ class TrackedAttrConfig(dict):
     # config files to be hierarchically structured without requiring
     # verbose indexing to get/set values. Features include:
     #   - dict items are accessible using attribute access notation,
-    #     i.e., `my_dict.somekey` works the same as `my_dict["somekey"]`
-    #   - this works recursively so it can be chained, e.g.,
-    #     `my_dict.outerkey.middlekey.innerkey` works in addition to
-    #     `my_dict["outerkey"]["middlekey"]["innerkey"]`
-    #   - all keys are available as top-level attributes regardless of
-    #     nesting level, except for those whose values are also
-    #     TrackedAttrConfigs. This is proactively disallowed
-    #     (see `self.__getattr__`) to keep the interface from getting
-    #     *too* confusing. The idea is that you can set nested values
-    #     without overly verbose indexing, e.g., `my_dict.innerkey = 1`
-    #     works for `my_dict["outerkey"]["middlekey"]["innerkey"] = 1`,
-    #     but `my_dict.middle_key.innerkey` does not (raises `KeyError`)
+    #     i.e., `my_dict.a` works the same as `my_dict["a"]`
+    #   - this also works recursively for chained attribute-style
+    #     access. E.g., `my_dict.a.b.c` returns the value stored in
+    #     `my_dict["a"]["b"]["c"]`.
+    #   - in addition to chained access, all fields are accessible as
+    #     both attributes and keys on the top-level object, regardless
+    #     of nesting. E.g., `my_dict["a"]["b"]["c"]` may also be
+    #     accessed via both `my_dict["c"]` and `my_dict.c`.
+    #       + NOTE: attribute/key access to arbitrarily nested dict keys
+    #         is performed by first checking each key, then recursively
+    #         searching each value **depth-first, in insertion order**.
+    #         This has important implications for how duplicate keys are
+    #         handled:
+    #           1. Keys in the top-level dict are always preferred over
+    #              those in nested dicts. E.g., for a TrackedAttrConfig
+    #              containing both `my_dict["a"]` and
+    #              `my_dict["b"]["a"]`, `my_dict["a"]` and `my_dict.a`
+    #              will always return the former.
+    #           2. For a TrackedAttrConfig containing both
+    #              `my_dict["a"]["e"]` and `my_dict["b"]["c"]["d"]["e"]`,
+    #              the value returned by `my_dict`["e"]` and `my_dict.e`
+    #              depends on whether `"a"` or `"b"` was added to
+    #              `my_dict` first. If insertion order were unknown,
+    #              `my_dict.b.e`, `my_dict.b.c.e`, `my_dict.b.c.d.e`,
+    #              and their equivalents in dict-like indexing would all
+    #              guarantee returning `my_dict["b"]["c"]["d"]["e"]`.
+    #              Additionally, `str(my_dict)` and `repr(my_dict)`
+    #              always display items in insertion order, top-down.
     #   - Keys are immutable but values are mutable, so the user can
     #     update config fields but can't delete them or add new ones
     #   - Updated values assigned to fields must be the same type as the
@@ -69,20 +85,16 @@ class TrackedAttrConfig(dict):
             for value in self.values():
                 if isinstance(value, TrackedAttrConfig):
                     try:
-                        val = value.__getattr__(name)
+                        return value.__getattr__(name)
                     except KeyError:
                         continue
-                    else:
-                        if isinstance(val, TrackedAttrConfig):
-                            continue
-                        return val
             else:
                 raise KeyError(f"No option named '{name}' found") from None
 
     def __getitem__(self, name: str) -> Any:
         return self.__getattr__(name)
 
-    def _setattr_helper_(self, name, value):
+    def _setattr_helper_(self, name: str, value: Any) -> None:
         # contains all of the "real" self.__setattr__ machinery
         try:
             curr_value = dict.__getitem__(self, name)
@@ -112,7 +124,7 @@ class TrackedAttrConfig(dict):
                 )
             dict.__setitem__(self, name, value)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         # main self.__setattr__ exists as a wrapper to prevent multiple
         # calls to self._common_update_hook within self.update
         old_attr_val = self.__getattr__(name)
