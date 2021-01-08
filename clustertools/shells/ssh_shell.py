@@ -18,6 +18,9 @@ if TYPE_CHECKING:
     from clustertools.shells.base_shell import BaseShell
 
 
+# TODO: refactor/remove lots of inefficient use of self.resolve_path
+
+
 ## noinspection PyAttributeOutsideInit,PyUnresolvedReferences
 class SshShellMixin:
     # ADD DOCSTRING
@@ -164,6 +167,7 @@ class SshShellMixin:
 
     def exists(self, path: PathLike) -> bool:
         # ADD DOCSTRING
+        # TODO: this is nearly circular with self.resolve_path(). Fix this.
         path = self.resolve_path(path, strict=False)
         return self.shell.exists(remote_path=path)
 

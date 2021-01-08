@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 from string import Template
 from typing import List, Literal, Optional, Sequence, Tuple, TYPE_CHECKING
 
@@ -20,8 +21,8 @@ class Job:
         #${directive_prefix} -q ${queue}
         #${directive_prefix} -l nodes=${n_nodes}:ppn=${ppn}
         #${directive_prefix} -l walltime=${wall_time}
-        #${directive_prefix} -M ${user}
         #${directive_prefix} -m ${mail_options}
+        ${email_directive}
         ${dependency_directive}
         ${hold_directive}
         ${environ_export_directive}
@@ -97,32 +98,158 @@ class Job:
     @property
     def wrapper(self):
         proj = self._project
-        # first, fill in fields whose values contain configurable fields
-        subtemplates = dict()
-        if proj.pre_submit_script is not None and self.kind == 'submitter':
-            # jobid of pre_submit job will get passed to submit script ("$1")
-            subtemplates['dependency_directive'] = '#${directive_prefix} -W depend=afterok:$1'
+        # first, fill in fields whose values:
+        #   A) in turn contain configurable fields, or
+        #   B) depend on the job type
+        # NOTE: logic is written to minimize duplicate conditional
+        # checks and namespace lookups run by the interpreter at the
+        # expense of including duplicate LOC
+        field_vals = dict()
+        proj_environ = proj.environ
+        if any(proj_environ):
+            environ_fmt = ','.join('='.join(item) for item in proj_environ.items()),
+            # if set, environment variables are exported to all job types
+            field_vals['environ_export_directive'] = ('#${directive_prefix} -v '
+                                                      f'{environ_fmt}')
         else:
-            subtemplates['dependency_directive'] = ''
+            field_vals['environ_export_directive'] = ''
+        if self.kind in ('runner', 'collector', 'pre_submit'):
+            field_vals['job_executable']: proj.job_executable
+            field_vals['n_nodes']: proj.n_nodes
+            field_vals['ppn']: proj.ppn
+            field_vals['wall_time']: proj.wall_time
+            modules = ' '.join(proj.modules)
+            field_vals['dependency_directive'] = ''
+            if any(modules):
+                cmd = f"""echo "loading modules: {modules}" 
+                          module load ${modules}
+                       """.splitlines()
+                field_vals['module_load_cmd'] = '\n'.join(map(str.lstrip, cmd))
+            else:
+                field_vals['module_load_cmd'] = ''
+            if self.kind == 'collector':
+                field_vals['hold_directive'] = '#${directive_prefix} -h'
+            else:
+                field_vals['hold_directive'] = ''
+        else:
+            # TODO: find a cleaner way of doing this so the loaded
+            #  module becomes the default 'python'. Will need to account
+            #  for users who have a Python executable assigned in their
+            #  dotfiles or an old-style conda executable that writes
+            #  conda_init to $HOME/.bashrc
+            field_vals['job_executable'] = 'python3.7'
+            field_vals['n_nodes'] = 1
+            field_vals['ppn'] = 1
+            field_vals['hold_directive'] = ''
+            # TODO: this is currently Dartmouth/Discovery-specific.
+            module_cmd = """echo "loading modules: python/3.7-Anaconda
+                            module load python/3.7-Anaconda
+                         """.splitlines()
+            field_vals['module_load_cmd'] = '\n'.join(map(str.lstrip, module_cmd))
+            if self.kind == 'submitter':
+                # estimate walltime needed to submit all jobs, assuming
+                # (conservatively) 1 job submitted every 5s plus some
+                # overhead for module load, conda activate, etc.
+                total_secs = len(proj.jobs) * 5 + 60
+                hrs = total_secs // 3600
+                mins = total_secs % 3600 // 60
+                secs = total_secs % 3600 % 60
+                field_vals['wall_time'] = f'{hrs:02d}:{mins:02d}:{secs:02d}'
+                if proj.notify_all_submitted:
+                    field_vals['mail_options'] = ''
+                if proj.pre_submit_script is not None:
+                    field_vals['dependency_directive'] = ('#${directive_prefix} '
+                                                          '-W depend=afterok:$1')
+
+            else:
+                # self.kind == 'monitor'
+                # estimate walltime based on jobs' walltime, given that
+                # not all start from the queue at the same time (up to
+                # 1 day max)
+
+
+
+
+        # TODO: make sure this checks for proper values in final field format
+        email_addrs = self._project.config.notifications.email_list
+        if field_vals['mail_options'] == 'n' or self._project.email_list == 'INFER':
+            # emails will be sent to default email address for submitting user
+            field_vals['email_directive'] = ''
+        else:
+            field_vals['email_directive'] = '#${directive_prefix} -M ${user}'
+        # substitute and convert back to template
+        partial_wrapper = Job._wrapper_template.safe_substitute(field_vals)
+        partial_template = Template(partial_wrapper)
+        # then fill in remaining fields
+        field_vals = {
+            'directive_prefix': proj.directive_prefix,
+            'job_name': self.name,
+            'project_root': proj.root_dir,
+            'stdout_path': self.stdout_path,
+            'stderr_path': self.stderr_path,
+            'queue': proj.queue,
+            'user': proj.user_to_notify,
+
+        }
+
+
+
+
+
+
+
+        if any(proj_environ):
+            environ_fmt = ','.join('='.join(item) for item in proj_environ.items()),
+            # if set, environment variables are exported to all job types
+            field_vals['environ_export_directive'] = ('#${directive_prefix} -v '
+                                                      f'{environ_fmt}')
+        else:
+            field_vals['environ_export_directive'] = ''
+        if self.kind == 'runner':
+            field_vals['job_executable']: proj.job_executable
+            field_vals['n_nodes']: proj.n_nodes
+            field_vals['ppn']: proj.ppn
+            field_vals['wall_time']: proj.wall_time
+            field_vals['dependency_directive'] = ''
+            field_vals['hold_directive'] = ''
+            modules = ' '.join(proj.modules)
+            if any(modules):
+                cmd = f"""echo "loading modules: {modules}"
+                module load ${modules}
+                """.splitlines()
+                field_vals['module_load_cmd'] = '\n'.join(map(str.lstrip, cmd))
+            else:
+                field_vals['module_load_cmd'] = ''
+        elif self.kind == 'submitter':
+            field_vals['job_executable'] = 'python'
+            field_vals['n_nodes'] = 1
+            field_vals['ppn'] = 1
+            # estimate walltime needed to submit all jobs, assuming
+            # (conservatively) 1 job submitted every 3s plus some
+            # overhead for module load, conda activate, etc.
+            total_secs = len(proj.jobs) * 3 + 30
+            hrs = total_secs // 3600
+            mins = total_secs % 3600 // 60
+            secs = total_secs % 3600 % 60
+            field_vals['wall_time'] = f'{hrs:02d}:{mins:02d}:{secs:02d}'
+            field_vals['hold_directive'] = ''
+            if proj.pre_submit_script is not None:
+                # submit script will receive pre-submit job's jobid ("$1")
+                field_vals['dependency_directive'] = '#${directive_prefix} -W depend=afterok:$1'
+            else:
+                field_vals['dependency_directive'] = ''
+            field_vals['hold_directive'] = ''
+            field_vals['module_load_cmd'] = ''
+        elif self.kind == 'monitor':
+            ...
         if self.kind == 'collector':
-            subtemplates['hold_directive'] = '#${directive_prefix} -h'
+            field_vals['hold_directive'] = '#${directive_prefix} -h'
         else:
-            subtemplates['hold_directive'] = ''
-        if any(proj.environ):
-            subtemplates['environ_export_directive'] = '#${directive_prefix} -v ${environ_fmt}'
-        else:
-            subtemplates['environ_export_directive'] = ''
+            field_vals['hold_directive'] = ''
+
         # TODO: make sure the spacing/alignment of these multiline
         #  strings is getting translated properly
-        if any(proj.modules):
-            cmd = """echo "loading modules: ${modules}"
-            module load ${modules}
-            """
-            cmd_fmt = '\n'.join(map(str.lstrip, cmd.splitlines()))
-            subtemplates['module_load_cmd'] = cmd_fmt
-        else:
-            subtemplates['module_load_cmd'] = ''
-        full_wrapper_str = Job._wrapper_template.safe_substitute(subtemplates)
+        full_wrapper_str = Job._wrapper_template.safe_substitute(first_subs)
         full_wrapper_template = Template(full_wrapper_str)
         # fill in remaining fields
         field_vals = {
@@ -132,13 +259,8 @@ class Job:
             'stdout_path': self.stdout_path,
             'stderr_path': self.stderr_path,
             'queue': proj.queue,
-            'n_nodes': proj.n_nodes,
-            'ppn': proj.ppn,
-            'wall_time': proj.wall_time,
             'user': proj.user_to_notify,
             'job_type': self.kind,
-            'job_executable': proj.job_executable,
-            'environ_fmt': ','.join('='.join(item) for item in proj.environ.items()),
             'modules': ' '.join(proj.modules)
         }
         # logic for constructing #PBS -m option str based on project
@@ -183,6 +305,96 @@ class Job:
             field_vals['env_activate_cmd'] = ''
             field_vals['env_deactivate_cmd'] = ''
         return full_wrapper_template.substitute(field_vals)
+
+    # @property
+    # def wrapper(self):
+    #     proj = self._project
+    #     # first, fill in fields whose values contain configurable fields
+    #     subtemplates = dict()
+    #     if proj.pre_submit_script is not None and self.kind == 'submitter':
+    #         # jobid of pre_submit job will get passed to submit script ("$1")
+    #         subtemplates['dependency_directive'] = '#${directive_prefix} -W depend=afterok:$1'
+    #     else:
+    #         subtemplates['dependency_directive'] = ''
+    #     if self.kind == 'collector':
+    #         subtemplates['hold_directive'] = '#${directive_prefix} -h'
+    #     else:
+    #         subtemplates['hold_directive'] = ''
+    #     if any(proj.environ):
+    #         subtemplates['environ_export_directive'] = '#${directive_prefix} -v ${environ_fmt}'
+    #     else:
+    #         subtemplates['environ_export_directive'] = ''
+    #     # TODO: make sure the spacing/alignment of these multiline
+    #     #  strings is getting translated properly
+    #     if any(proj.modules):
+    #         cmd = """echo "loading modules: ${modules}"
+    #         module load ${modules}
+    #         """
+    #         cmd_fmt = '\n'.join(map(str.lstrip, cmd.splitlines()))
+    #         subtemplates['module_load_cmd'] = cmd_fmt
+    #     else:
+    #         subtemplates['module_load_cmd'] = ''
+    #     full_wrapper_str = Job._wrapper_template.safe_substitute(subtemplates)
+    #     full_wrapper_template = Template(full_wrapper_str)
+    #     # fill in remaining fields
+    #     field_vals = {
+    #         'directive_prefix': proj.directive_prefix,
+    #         'job_name': self.name,
+    #         'project_root': proj.root_dir,
+    #         'stdout_path': self.stdout_path,
+    #         'stderr_path': self.stderr_path,
+    #         'queue': proj.queue,
+    #         'n_nodes': proj.n_nodes,
+    #         'ppn': proj.ppn,
+    #         'wall_time': proj.wall_time,
+    #         'user': proj.user_to_notify,
+    #         'job_type': self.kind,
+    #         'job_executable': proj.job_executable,
+    #         'environ_fmt': ','.join('='.join(item) for item in proj.environ.items()),
+    #         'modules': ' '.join(proj.modules)
+    #     }
+    #     # logic for constructing #PBS -m option str based on project
+    #     # config values and job type
+    #     # this could be written in fewer lines, but this way results in
+    #     # fewer namespace lookups, which could potentially add up to
+    #     # something significant for extremely long JobLists
+    #     # NOTE: the 'all_finished' config field affects params passed to monitor job, rather than
+    #     mail_opts = ''
+    #     if self.kind == 'submitter' and proj.notify_all_submitted:
+    #         mail_opts = 'e'
+    #     elif self.kind == 'collector' and proj.notify_collector_finished:
+    #         mail_opts = 'e'
+    #     elif self.kind == 'runner':
+    #         if proj.notify_job_started:
+    #             mail_opts += 'b'
+    #         if proj.notify_job_finished:
+    #             mail_opts += 'e'
+    #         if proj.notify_job_aborted:
+    #             mail_opts += 'a'
+    #         if proj.notify_job_failed:
+    #             mail_opts += 'f'
+    #     if mail_opts == '':
+    #         # no mail will be sent
+    #         mail_opts = 'n'
+    #     field_vals['mail_options'] = mail_opts
+    #     # only have to check one of the two virtual environment commands,
+    #     # 'Project.check_submittable()' ensures either both or neither
+    #     # is set
+    #     if proj.env_activate_cmd:
+    #         a_cmd = f"""echo "activating environment
+    #                     {proj.env_activate_cmd}
+    #                     """
+    #         d_cmd = f"""
+    #                     echo "deactivating environment"
+    #                     {proj.env_deactivate_cmd}"""
+    #         a_cmd_fmt = '\n'.join(map(str.lstrip, a_cmd.splitlines()))
+    #         d_cmd_fmt = '\n'.join(map(str.lstrip, d_cmd.splitlines()))
+    #         field_vals['env_activate_cmd'] = a_cmd_fmt
+    #         field_vals['env_deactivate_cmd'] = d_cmd_fmt
+    #     else:
+    #         field_vals['env_activate_cmd'] = ''
+    #         field_vals['env_deactivate_cmd'] = ''
+    #     return full_wrapper_template.substitute(field_vals)
 
 
 class JobListCache(dict):

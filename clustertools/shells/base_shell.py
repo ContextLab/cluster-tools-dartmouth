@@ -174,6 +174,7 @@ class BaseShell:
         if not path.startswith('/'):
             path = os.path.join(cwd, path)
         full_path = os.path.normpath(path)
+        # TODO: this is nearly circular with self.exists(). Fix this.
         if strict and not self.exists(full_path):
             # format follows exception raised for pathlib.Path.resolve(strict=True)
             raise FileNotFoundError("[Errno 2] No such file or directory: "
