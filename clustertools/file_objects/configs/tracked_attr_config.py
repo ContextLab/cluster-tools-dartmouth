@@ -36,6 +36,8 @@ class TrackedAttrConfig(dict):
     #              guarantee returning `my_dict["b"]["c"]["d"]["e"]`.
     #              Additionally, `str(my_dict)` and `repr(my_dict)`
     #              always display items in insertion order, top-down.
+    #           3. Two keys of the same name must share an attribute
+    #              update hook.
     #   - Keys are immutable but values are mutable, so the user can
     #     update config fields but can't delete them or add new ones
     #   - Updated values assigned to fields must be the same type as the
@@ -55,7 +57,7 @@ class TrackedAttrConfig(dict):
             self,
             d: MutableMapping[str, Any],
             attr_update_hooks: Optional[Dict[str, Callable[[Any], None]]] = None,
-            common_update_hook: Optional[Callable[[Dict[str, any]], None]] = None
+            common_update_hook: Optional[Callable[[Dict[str, Any]], None]] = None
     ) -> None:
         super().__init__(d)
         for key, value in d.items():
@@ -99,14 +101,19 @@ class TrackedAttrConfig(dict):
         try:
             curr_value = dict.__getitem__(self, name)
         except KeyError:
-            for _value in self.values():
+            for i, _value in enumerate(self.values()):
                 if isinstance(_value, TrackedAttrConfig):
                     try:
                         return _value._setattr_helper_(name, value)
                     except KeyError:
                         continue
-                    except (AttributeError, TypeError) as e:
+                    except AttributeError as e:
                         raise e from None
+                    except TypeError as e:
+                        if i == len(self.values()):
+                            raise e from None
+                        else:
+                            continue
             else:
                 raise TypeError(
                     "'TrackedAttrConfig' object does not support key insertion"
@@ -117,11 +124,12 @@ class TrackedAttrConfig(dict):
                     "'TrackedAttrConfig' subsections do not support "
                     "assignment, only individual values"
                 )
-            elif not isinstance(value, type(curr_value)):
-                raise TypeError(
-                    f"Value assigned to '{name}' must be of type "
-                    f"'{type(curr_value).__name__}'"
-                )
+            # NOTE: moving this to config_hooks for finer per-field control
+            # elif not isinstance(value, type(curr_value)):
+            #     raise TypeError(
+            #         f"Value assigned to '{name}' must be of type "
+            #         f"'{type(curr_value).__name__}'"
+            #     )
             dict.__setitem__(self, name, value)
 
     def __setattr__(self, name: str, value: Any) -> None:
