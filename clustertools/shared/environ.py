@@ -45,15 +45,19 @@ class PseudoEnviron:
         self._current_env[key] = value
 
     # noinspection PyPep8Naming
-    def update(self, E, **F) -> None:
+    def update(self, *other, **kwargs) -> None:
         # ADD DOCSTRING
-        # params named to match dict.update() signature
-        E = dict(E, **F)
-        if not all(isinstance(i, str) for i in sum(E.items(), ())):
+        # conforms to args/arg types accepted by dict.update
+        if len(other) > 1:
+            raise TypeError(
+                f"update expected at most 1 argument, got {len(other)}"
+            )
+        other = dict(other, **kwargs)
+        if not all(isinstance(i, str) for i in sum(other.items(), ())):
             raise TypeError("All keys and values in mapping must be 'str'")
         # intentionally *DOESN'T* call self.__setitem__ to avoid
         # repeated type checks + callback runs in subclass
-        self._current_env.update(**E)
+        self._current_env.update(**other)
 
     def setdefault(self, key: str, default: str = '') -> str:
         # ADD DOCSTRING
