@@ -5,8 +5,12 @@ from configparser import ConfigParser
 from typing import Optional, TYPE_CHECKING
 
 from clustertools import CLUSTERTOOLS_CONFIG_DIR, CLUSTERTOOLS_TEMPLATES_DIR
-from clustertools.file_objects.base_config import BaseConfig
-from clustertools.file_objects.config_hooks import GLOBAL_CONFIG_UPDATE_HOOKS
+from clustertools.file_objects.configs.base_config import BaseConfig
+from clustertools.file_objects.configs.config_helpers import (
+    GLOBAL_CONFIG_UPDATE_HOOKS,
+    GLOBAL_OBJECT_POST_UPDATE_HOOKS,
+    ParrotDict
+)
 
 if TYPE_CHECKING:
     from clustertools.cluster import Cluster
@@ -20,19 +24,20 @@ class GlobalConfig(BaseConfig):
         # ADD DOCSTRING
         global_config_path_local = CLUSTERTOOLS_CONFIG_DIR.joinpath('global_config.ini')
         # needs to happen before BaseConfig._init_local is called
-        self._attr_update_hooks = GLOBAL_CONFIG_UPDATE_HOOKS
+        self._config_update_hooks = ParrotDict()
+        self._object_post_update_hooks = ParrotDict()
+        self._object_validate_hooks = ParrotDict()
+        for field, hook in GLOBAL_CONFIG_UPDATE_HOOKS.items():
+            self._config_update_hooks[field] = hook(self)
+        for field, hook in GLOBAL_OBJECT_POST_UPDATE_HOOKS.items():
+            self._object_post_update_hooks[field] = hook(self)
         super().__init__(cluster=cluster,
                          local_path=global_config_path_local,
                          remote_path=remote_path)
 
-    def _environ_update_hook(self):
-        environ_str = BaseConfig._environ_to_str(self._config.environ)
-        self._configparser.set('project_defaults.runtime_environment',
-                               'environ',
-                               environ_str)
-        self.write_config_file()
-
     def _init_local(self):
+        # need to make sure the config exists before
+        # BaseConfig._init_local parses it
         if not self.local_path.is_file():
             if not CLUSTERTOOLS_CONFIG_DIR.is_dir():
                 CLUSTERTOOLS_CONFIG_DIR.mkdir()
@@ -45,15 +50,10 @@ class GlobalConfig(BaseConfig):
         if self._config.general.project_dir == '$HOME':
             self._config.general.project_dir = self._cluster.getenv('HOME', default='$HOME')
 
-    def _modules_update_hook(self):
-        modules_str = ', '.join(self._config.project_defaults.runtime_environment.modules)
-        self._configparser.set('project_defaults.runtime_environment',
-                               'modules',
-                               modules_str)
-        self.write_config_file()
-
     def create_project_config(self, project_name: str) -> ConfigParser:
         # ADD DOCSTRING
+        # TODO: given how the project config is created, the template
+        #  file probably doesn't even need to exist
         project_parser = ConfigParser(strict=True)
         project_parser['general'] = self._configparser['project_defaults']
         project_parser['runtime_environment'] = self._configparser['project_defaults.runtime_environment']

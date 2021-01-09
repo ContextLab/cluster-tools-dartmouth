@@ -1,47 +1,25 @@
 from __future__ import annotations
 
 from configparser import ConfigParser
-from typing import Dict, Optional, TYPE_CHECKING, Union
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
-from clustertools.file_objects.config_hooks import (BASE_CONFIG_UPDATE_HOOKS,
-                                                    write_updated_config)
-from clustertools.file_objects.tracked_attr_config import TrackedAttrConfig
+from clustertools.file_objects.configs.config_helpers import (
+    BASE_CONFIG_UPDATE_HOOKS,
+    BASE_OBJECT_VALIDATE_HOOKS,
+    str_to_type,
+    to_type_funcs,
+    type_to_str
+)
 from clustertools.file_objects.synced_file import SyncedFile
-from clustertools.shared.object_monitors import MonitoredEnviron, MonitoredList
 
 if TYPE_CHECKING:
     from clustertools.cluster import Cluster
+    from clustertools.file_objects.configs.tracked_attr_config import TrackedAttrConfig
     from clustertools.shared.typing import PathLike
 
 
 class BaseConfig(SyncedFile):
     # ADD DOCSTRING
-
-    @staticmethod
-    def _environ_to_str(
-            environ: Union[MonitoredEnviron[str, str], Dict[str, str]]
-    ) -> str:
-        str_fmt = '\n'.join(' = '.join(item) for item in environ.items())
-        if str_fmt != '':
-            str_fmt = '\n' + str_fmt
-        return str_fmt
-
-    @staticmethod
-    def _type_to_str(
-            key: str,
-            value: Union[str, bool, int, MonitoredEnviron[str, str], MonitoredList[str]]
-    ) -> str:
-        if value is True or value is False:
-            return str(value).lower()
-        elif isinstance(value, int):
-            return str(value)
-        elif key == 'environ':
-            return BaseConfig._environ_to_str(value)
-        elif key == 'modules':
-            return ', '.join(value)
-        else:
-            return value
-
     def __init__(
             self,
             cluster: Cluster,
@@ -49,10 +27,22 @@ class BaseConfig(SyncedFile):
             remote_path: Optional[PathLike] = None
     ) -> None:
         # ADD DOCSTRING
-        self._attr_update_hooks.update(BASE_CONFIG_UPDATE_HOOKS)
-        super().__init__(cluster=cluster, local_path=local_path, remote_path=remote_path)
-        self._environ_update_hook = None
-        self._modules_update_hook = None
+        # bind hooks to object *WITHOUT UPDATING THE ORIGINAL* - if the
+        # original function object were modified, initializing a second
+        # BaseConfig instance in the same session would fail
+        # - needs to be done before call to super().__init__, which
+        # triggers _init_local methods here and on subclasses.
+        for field, hook in BASE_CONFIG_UPDATE_HOOKS.items():
+            self._config_update_hooks[field] = hook(self)
+        for field, hook in BASE_OBJECT_VALIDATE_HOOKS.items():
+            self._object_validate_hooks[field] = hook(self)
+        self._to_type_funcs = dict()
+        for field, func in to_type_funcs.items():
+            self._to_type_funcs[field] = func(self)
+        self._str_to_type = str_to_type(self)
+        super().__init__(cluster=cluster,
+                         local_path=local_path,
+                         remote_path=remote_path)
 
     def __getattr__(self, item):
         # makes TrackedAttrConfig methods and fields accessible directly
@@ -87,11 +77,8 @@ class BaseConfig(SyncedFile):
     def _init_local(self):
         # NOTE: currently super()._init_local() just 'pass'es. If that
         # changes, this should call it.
-        # bind hooks to config object instance
-        global write_updated_config
-        for field, hook in self._attr_update_hooks.items():
-            self._attr_update_hooks[field] = hook(self)
-        write_updated_config = write_updated_config(self)
+        # suppressing because inspection doesn't pick up return value
+        # of decorated function
         self._configparser = self._load_configparser()
         self._config = self._parse_config()
 
@@ -115,6 +102,9 @@ class BaseConfig(SyncedFile):
                 continue
             section_dict = dict()
             for option, value in section.items():
+                # PyCharm doesn't recognize Callables returned by
+                # decorated functions
+                # noinspection PyCallingNonCallable
                 section_dict[option] = self._str_to_type(option, value)
             if '.' in sec_name:
                 sec_name, subsec_name = sec_name.split('.')
@@ -122,38 +112,27 @@ class BaseConfig(SyncedFile):
             else:
                 config[sec_name] = section_dict
         return TrackedAttrConfig(config,
-                                 attr_update_hooks=self._attr_update_hooks,
-                                 common_update_hook=write_updated_config)
+                                 attr_update_hooks=self._config_update_hooks,
+                                 common_update_hook=self._write_updated_config)
 
-    def _str_to_environ(self, environ_str: str) -> MonitoredEnviron[str, str]:
-        keys_vals = map(lambda x: x.split('='), environ_str.strip().splitlines())
-        env_dict = {k.strip(): v.strip() for k, v in keys_vals}
-        return MonitoredEnviron(initial_env=dict(),
-                                custom_vars=env_dict,
-                                update_hook=self._environ_update_hook)
-
-    def _str_to_list(self, modules_str: str) -> MonitoredList[str]:
-        modules_list = [m.strip() for m in modules_str.strip().split(',')]
-        return MonitoredList(modules_list, update_hook=self._modules_update_hook)
-
-    def _str_to_type(
-            self,
-            key: str,
-            value: str
-    ) -> Union[str, bool, int, MonitoredEnviron[str, str], MonitoredList[str]]:
-        if value == 'true':
-            return True
-        elif value == 'false':
-            return False
-        elif value.isdigit():
-            return int(value)
-        # two special cases
-        elif key == 'environ':
-            return self._str_to_environ(value)
-        elif key == 'modules':
-            return self._str_to_list(value)
-        else:
-            return value
+    def _write_updated_config(self, keys_newvals: Dict[str, Any]) -> None:
+        # called when any changes to the config object are made
+        # keys_newvals is a dict of just-updated fields
+        # function used for TrackedAttrConfig.common_update_hook
+        any_changed = False
+        for sec_name, section in self._configparser.items():
+            if sec_name == 'DEFAULT':
+                continue
+            for option, value in section.items():
+                if option in keys_newvals:
+                    str_newval = type_to_str(value=keys_newvals[option])
+                    if str_newval != value:
+                        section[option] = str_newval
+                        any_changed = True
+                else:
+                    continue
+        if any_changed:
+            self.write_config_file()
 
     def write_config_file(self):
         # ADD DOCSTRING
