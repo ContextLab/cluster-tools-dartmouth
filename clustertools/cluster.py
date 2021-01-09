@@ -5,7 +5,7 @@ from pathlib import PurePosixPath
 from typing import Optional, TYPE_CHECKING
 
 from clustertools import CLUSTERTOOLS_CONFIG_DIR
-from clustertools.file_objects.global_config import GlobalConfig
+from clustertools.file_objects.configs.global_config import GlobalConfig
 from clustertools.project.project import Project
 from clustertools.project.project_handler import ProjectHandlerMixin
 from clustertools.shells.base_shell import BaseShell

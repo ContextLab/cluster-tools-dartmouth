@@ -6,10 +6,12 @@ import os
 import socket
 from pathlib import Path
 from typing import (Callable,
+                    cast,
                     Dict,
                     Optional,
                     Union,
                     Tuple,
+                    Type,
                     TYPE_CHECKING,
                     Sequence)
 
@@ -27,12 +29,11 @@ if TYPE_CHECKING:
                                             PathLike)
 
 
-## noinspection PyAttributeOutsideInit,PyUnresolvedReferences
 class BaseShell:
     # ADD DOCSTRING
     # TODO: test use as context manager when spawning a process that runs
     #  longer than the context block
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls: Type[BaseShell], *args, **kwargs) -> BaseShell:
         signature = inspect.signature(cls.__init__)
         bound_args = signature.bind_partial(*args, **kwargs)
         bound_args.apply_defaults()
@@ -45,7 +46,9 @@ class BaseShell:
         bases = (cls, shell_mixin)
         # TODO: could vary the name here based on which mixin is used as
         #  long as it doesn't mess with Cluster inheritance
-        return super().__new__(type(cls.__name__, bases, dict(cls.__dict__)))
+        instance = super().__new__(type(cls.__name__, bases, dict(cls.__dict__)))
+        # typing.cast isn't evaluated at runtime; equivalent to 'return instance'
+        return cast(BaseShell, instance)
 
     def __init__(
             self,

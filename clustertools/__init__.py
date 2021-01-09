@@ -12,6 +12,8 @@ CLUSTERTOOLS_TEMPLATES_DIR = Path(__file__).resolve().parent.joinpath('templates
 from clustertools.cluster import Cluster
 
 
+# TODO: define __dir__ methods for classes to control IPython TAB-completion
+
 # TODO: add logging functionality
 
 # TODO: move all property setter docstrings to getters
@@ -34,3 +36,7 @@ from clustertools.cluster import Cluster
 
 # TODO(?): expose all options for #PBS -m directive for all job types
 #  rather than only offering most useful ones (project_config)
+
+# TODO(?): move all type hint-related definitions to shared.typing so
+#  they can be imported conditionally to avoid polluting the namespace
+#  at runtime

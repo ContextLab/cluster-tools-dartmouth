@@ -14,7 +14,7 @@ from typing import (Any,
                     Union)
 
 from clustertools import CLUSTERTOOLS_TEMPLATES_DIR
-from clustertools.file_objects.project_config import ProjectConfig
+from clustertools.file_objects.configs.project_config import ProjectConfig
 from clustertools.file_objects.project_script import ProjectScript
 from clustertools.project.job import Job, JobList
 from clustertools.shared.exceptions import (ClusterToolsProjectError,

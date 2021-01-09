@@ -41,7 +41,7 @@ EmailAddress = NewType('EmailAddress', str)
 list_of_str = List[str]
 
 # config hook typing
-_Conf = TypeVar('_Conf', bound=BaseConfig)
+_Config = TypeVar('_Config', bound=BaseConfig)
 _Func1 = TypeVar('_Func1', bound=Callable)
 _Func2 = TypeVar('_Func2', bound=Callable)
 _UncheckedVal = TypeVar('_UncheckedVal', bound=Any)
@@ -51,7 +51,7 @@ _BoundHook = TypeVar('_BoundHook', bound=_Func2[[_UncheckedVal], _CheckedVal])
 _str_return_types = Union[str, PathLike, MonitoredList, WallTimeStr,
                           EmailAddress, Literal['local', 'remote', 'recent']]
 _nested_dict = Dict[str, Union[str, '_nested_dict']]
-class _Hook(Protocol[_Conf, _UncheckedVal]):
+class _Hook(Protocol[_Config, _UncheckedVal]):
     @overload
     def __call__(self, val: str) -> str: ...
 
