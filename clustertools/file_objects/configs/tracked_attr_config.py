@@ -1,4 +1,18 @@
-from typing import Any, Callable, Dict, MutableMapping, NoReturn, Optional
+from typing import (Any,
+                    Callable,
+                    Dict,
+                    List,
+                    MutableMapping,
+                    NoReturn,
+                    Optional,
+                    TYPE_CHECKING,
+                    TypeVar,
+                    Union)
+
+from clustertools.shared.object_monitors import MonitoredEnviron, MonitoredList
+
+if TYPE_CHECKING:
+    _AsDict = Dict[str, Union[str, bool, int, List[str], Dict[str, str], '_AsDict']]
 
 
 class TrackedAttrConfig(dict):
@@ -198,3 +212,14 @@ class TrackedAttrConfig(dict):
 
     def setdefault(self, key: Any, default: Optional[Any] = None) -> NoReturn:
         raise TypeError("'TrackedAttrConfig' object does not support key insertion")
+
+    def to_dict(self) -> _AsDict:
+        d = dict(self)
+        for key, value in d.items():
+            if isinstance(value, MonitoredList):
+                d[key] = list(value)
+            elif isinstance(value, MonitoredEnviron):
+                d[key] = dict(value)
+            elif isinstance(value, TrackedAttrConfig):
+                d[key] = value.to_dict()
+        return d
