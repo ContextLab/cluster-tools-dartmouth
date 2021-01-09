@@ -47,7 +47,6 @@ class MonitoredEnviron(PseudoEnviron):
         super().__setitem__(key=key, value=value)
         self._post_update_hook()
 
-    # noinspection PyPep8Naming
     def update(self, *other, **kwargs) -> None:
         # NOTE: main constraint on keys/values (all must be str)
         # ADD DOCSTRING
@@ -78,7 +77,7 @@ class MonitoredList(list):
     def __init__(
             self,
             list_: Iterable[Any],
-            validate_item_hook: Optional[Callable[[List[Any]], None]] = None,
+            validate_item_hook: Optional[Callable[[Any], None]] = None,
             post_update_hook: Optional[Callable[..., None]] = None
     ) -> None:
         super().__init__(list_)
@@ -92,7 +91,8 @@ class MonitoredList(list):
             self._post_update_hook = post_update_hook
 
     def __add__(self, other: List[Any]) -> List[Any]:
-        self._validate_item_hook(other)
+        for item in other:
+            self._validate_item_hook(item)
         result = super().__add__(other)
         self._post_update_hook()
         return result
@@ -102,7 +102,8 @@ class MonitoredList(list):
         self._post_update_hook()
 
     def __iadd__(self, other: List[Any]):
-        self._validate_item_hook(other)
+        for item in other:
+            self._validate_item_hook(item)
         super().__iadd__(other)
         self._post_update_hook()
 
@@ -125,12 +126,12 @@ class MonitoredList(list):
         )
 
     def __setitem__(self, key: int, value: Any) -> None:
-        self._validate_item_hook([value])
+        self._validate_item_hook(value)
         super().__setitem__(key, value)
         self._post_update_hook()
 
     def append(self, obj: Any) -> None:
-        self._validate_item_hook([obj])
+        self._validate_item_hook(obj)
         super().append(obj)
         self._post_update_hook()
 
@@ -141,12 +142,13 @@ class MonitoredList(list):
     def extend(self, iterable: Iterable[Any]) -> None:
         # convert to list only once in case iterable is a generator
         new_items = list(iterable)
-        self._validate_item_hook(new_items)
+        for item in new_items:
+            self._validate_item_hook(item)
         super().extend(new_items)
         self._post_update_hook()
 
     def insert(self, index: int, obj: Any) -> None:
-        self._validate_item_hook([obj])
+        self._validate_item_hook(obj)
         super().insert(index, obj)
         print('insert called')
 

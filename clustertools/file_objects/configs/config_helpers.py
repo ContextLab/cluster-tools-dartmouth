@@ -200,7 +200,7 @@ def move_projects(inst: GlobalConfig, new_dir: str) -> None:
 
 
 @bindable
-def executable_update_hook(inst: GlobalConfig, new_exe: str) -> None:
+def validate_shell_executable(inst: GlobalConfig, new_exe: str) -> None:
     # update cluster object, which conveniently validates executable
     # enforce_value_type(value=new_exe, _type=str)
     inst._cluster.executable = new_exe
@@ -228,7 +228,7 @@ def monitor_modules_global(
         inst: GlobalConfig,
         new_modules: OneOrMore[str]
 ) -> MonitoredList:
-    # called when config field is *replaced*, rather than appended edited
+    # called when config field is *replaced*, rather than edited
     if isinstance(new_modules, str):
         new_modules = [new_modules]
     else:
@@ -240,8 +240,8 @@ def monitor_modules_global(
 
 GLOBAL_CONFIG_UPDATE_HOOKS = {
     'project_dir': move_projects,
-    'launch_in_project_dir': 0,
-    'executable': executable_update_hook
+    'executable': validate_shell_executable,
+    'default_prefer': check_default_prefer_value,
 }
 
 
@@ -262,4 +262,17 @@ def monitor_modules_project(
                          validate_item_hook=None,
                          post_update_hook=modules_post_update_project(inst))
 
-PROJECT_CONFIG_UPDATE_HOOKS = {}
+
+
+@bindable
+def update_config_from_global(inst: ProjectConfig, pref: bool) -> bool:
+    # TODO: write me. This one's going to take some pre-planning &
+    #  coordinating between ProjectConfig, Project, MonitoredEnviron,
+    #  TrackedAttrConfig, etc. classes
+    ...
+    return pref
+
+PROJECT_CONFIG_UPDATE_HOOKS = {
+    'modules': monitor_modules_project,
+    'use_global_environ': update_config_from_global
+}
