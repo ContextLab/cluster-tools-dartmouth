@@ -6,7 +6,6 @@ from typing import (Any,
                     NoReturn,
                     Optional,
                     TYPE_CHECKING,
-                    TypeVar,
                     Union)
 
 from clustertools.shared.object_monitors import MonitoredEnviron, MonitoredList
@@ -63,16 +62,13 @@ class TrackedAttrConfig(dict):
     #     names defined on the owner class *OR* any parent classes or
     #     mixins
 
-    @staticmethod
-    def _default_update_hook(arg):
-        pass
-
     def __init__(
             self,
             d: MutableMapping[str, Any],
-            attr_update_hooks: Optional[Dict[str, Callable[[Any], None]]] = None,
+            attr_update_hooks: Optional[Dict[str, Callable[[Any], Any]]] = None,
             common_update_hook: Optional[Callable[[Dict[str, Any]], None]] = None
     ) -> None:
+        # ADD DOCSTRING
         super().__init__(d)
         for key, value in d.items():
             if hasattr(value, 'keys') and key != 'environ':
@@ -138,77 +134,28 @@ class TrackedAttrConfig(dict):
                     "'TrackedAttrConfig' subsections do not support "
                     "assignment, only individual values"
                 )
-            # NOTE: moving this to config_hooks for finer per-field control
-            # elif not isinstance(value, type(curr_value)):
-            #     raise TypeError(
-            #         f"Value assigned to '{name}' must be of type "
-            #         f"'{type(curr_value).__name__}'"
-            #     )
             dict.__setitem__(self, name, value)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        # main self.__setattr__ exists as a wrapper to prevent multiple
-        # calls to self._common_update_hook within self.update
-        old_attr_val = self.__getattr__(name)
+        # main 'self.__setattr__' method is really just a wrapper around
+        # 'self._setattr_helper' so that 'self.update' and recursive
+        # attribute lookup don't trigger multiple calls to the two
+        # update hooks
+        value = self._attr_update_hooks[name](value)
         self._setattr_helper_(name, value)
-        # attr update hook needs to be run outside _setattr_helper_ so
-        # updated value can be rolled back in case the hook runs some
-        # validation that fails
-        try:
-            self._attr_update_hooks.get(name, TrackedAttrConfig._default_update_hook)(value)
-        except Exception as e:
-            # temporarily disable update hook while restoring original value
-            _prev_attr_update_hooks = self._attr_update_hooks
-            dict.__setattr__(self, '_attr_update_hooks', {})
-            try:
-                self._setattr_helper_(name, old_attr_val)
-            finally:
-                dict.__setattr__(self, '_attr_update_hooks', _prev_attr_update_hooks)
-                raise e
-        else:
-            # only run common update hook if assignment & attr hook
-            # were successful
-            self._common_update_hook({name: value})
+        self._common_update_hook({name: value})
 
     def __setitem__(self, name: str, value: Any) -> None:
         return self.__setattr__(name, value)
 
-    # noinspection PyPep8Naming
-    def update(self, E, **F) -> None:
-        # params named to match dict.update() docstring/signature
-        # expensive but safe approach: prevents all changes if one
-        # assignment from F fails
-        E = dict(E, **F)
-        pre_update = dict()
-#         pre_update = self.copy()
-        try:
-            for key, value in E.items():
-                # record each pre-self.update value...
-                pre_update_key = self.__getattr__(key)
-                # manually update the fields one-by-one
-                self._setattr_helper_(key, value)
-                # ...but don't add it to the fields to be reset in error
-                # handling until running the update hook -- _setattr_helper_
-                # fails for invalid assignments *before* updating value,
-                # and resetting it may throw additional errors. Vs update
-                # hooks fail for other validations *after* updating value,
-                # and affected fields need to be rolled back.
-                pre_update[key] = pre_update_key
-                self._attr_update_hooks.get(key, TrackedAttrConfig._default_update_hook)(value)
-        except Exception as e:
-            # temporarily disable update hooks while rolling back values
-            _prev_attr_update_hooks = self._attr_update_hooks
-            dict.__setattr__(self, '_attr_update_hooks', {})
-            try:
-                for key, old_value in pre_update.items():
-                    self._setattr_helper_(key, old_value)
-            finally:
-                dict.__setattr__(self, '_attr_update_hooks', _prev_attr_update_hooks)
-                raise e from None
-        else:
-            # only run common update hook if all assignments &
-            # attr-specific hooks were successful
-            self._common_update_hook(E)
+    def update(self, *other, **kwargs) -> None:
+        update_vals = dict(*other, **kwargs)
+        update_vals = {
+            k: self._attr_update_hooks[k](v) for k, v in update_vals.items()
+        }
+        for key, value in update_vals.items():
+            self._setattr_helper_(key, value)
+        self._common_update_hook(update_vals)
 
     def setdefault(self, key: Any, default: Optional[Any] = None) -> NoReturn:
         raise TypeError("'TrackedAttrConfig' object does not support key insertion")
