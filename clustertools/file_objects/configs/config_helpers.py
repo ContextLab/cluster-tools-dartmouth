@@ -8,12 +8,14 @@ from typing import Any, Callable, Dict, Literal, TYPE_CHECKING, TypeVar, Union
 if TYPE_CHECKING:
     from clustertools.file_objects.configs.global_config import GlobalConfig
     from clustertools.file_objects.configs.project_config import ProjectConfig
+    from clustertools.shared.environ import PseudoEnviron
     from clustertools.shared.object_monitors import MonitoredList
     from clustertools.shared.typing import (_BoundHook,
                                             _CheckedVal,
                                             _Config,
                                             _Hook,
                                             _UncheckedVal,
+                                            EmailAddress,
                                             OneOrMore,
                                             WallTimeStr)
 
@@ -59,18 +61,6 @@ def dummy_hook(inst: _Config, val: _T) -> _T:
     return val
 
 
-def validate_email_str(email_str: str) -> None:
-    # used by itself when individual items added to/replaced in
-    # email_list and as part of 'validate_email_list' when entire field
-    # is replaced
-    is_valid = bool(EMAIL_PATTERN.match(email_str))
-    if not is_valid:
-        raise ValueError(
-            f"{email_str} does not appear to be formatted as a valid email "
-            f"address"
-        )
-
-
 ########################################################################
 #                         CONFIG HOOK HELPERS                          #
 ########################################################################
@@ -100,6 +90,13 @@ def bindable(
 #         )
 
 
+def environ_to_str(environ: Union[Dict[str, str], PseudoEnviron]) -> str:
+    str_fmt = '\n'.join(' = '.join(item) for item in environ.items())
+    if str_fmt != '':
+        str_fmt = '\n' + str_fmt
+    return str_fmt
+
+
 @bindable
 def write_updated_config(inst: _Config, keys_newvals: Dict[str, Any]) -> None:
     # TODO: just define this on BaseConfig instead?
@@ -126,6 +123,23 @@ def write_updated_config(inst: _Config, keys_newvals: Dict[str, Any]) -> None:
 #                        MONITORED OBJECT HOOKS                        #
 ########################################################################
 @bindable
+def environ_post_update_global(inst: GlobalConfig) -> None:
+    default_environ = inst._config.project_defaults.runtime_environment.environ
+    environ_str = environ_to_str(default_environ)
+    inst._configparser.set('project_defaults.runtime_environment',
+                           'environ',
+                           environ_str)
+    inst.write_config_file()
+
+
+@bindable
+def environ_post_update_project(inst: ProjectConfig) -> None:
+    environ_str = environ_to_str(inst._config.runtime_environment.environ)
+    inst._configparser.set('runtime_environment', 'environ', environ_str)
+    inst.write_config_file()
+
+
+@bindable
 def modules_post_update_global(inst: GlobalConfig) -> None:
     modules_str = ','.join(inst._config.project_defaults.runtime_environment.modules)
     inst._configparser.set('project_defaults.runtime_environment',
@@ -138,6 +152,36 @@ def modules_post_update_global(inst: GlobalConfig) -> None:
 def modules_post_update_project(inst: ProjectConfig) -> None:
     modules_str = ','.join(inst._config.runtime_environment.modules)
     inst._configparser.set('runtime_environment', 'modules', modules_str)
+    inst.write_config_file()
+
+
+def validate_email(email: OneOrMore[str]) -> None:
+    # used by itself when individual items added to/replaced in
+    # email_list and as part of 'validate_email_list' when entire field
+    # is replaced
+
+    is_valid = bool(email == 'INFER' or EMAIL_PATTERN.match(email))
+    if not is_valid:
+        raise ValueError(
+            f"{email} does not appear to be formatted as a valid email "
+            f"address (you can pass 'infer' to use the default email address "
+            f"for your account)"
+        )
+
+
+@bindable
+def email_post_update_global(inst: GlobalConfig) -> None:
+    emails_str = ','.join(inst._config.project_defaults.notifications.email_list)
+    inst._configparser.set('project_defaults.notifications',
+                           'email_list',
+                           emails_str)
+    inst.write_config_file()
+
+
+@bindable
+def email_post_update_project(inst: ProjectConfig) -> None:
+    emails_str = ','.join(inst._config.notifications.email_list)
+    inst._configparser.set('notifications', 'email_list', emails_str)
     inst.write_config_file()
 
 
@@ -176,22 +220,22 @@ def validate_walltime_str(inst: _Config, walltime_str: str) -> WallTimeStr:
 
 BASE_CONFIG_UPDATE_HOOKS = {
     'job_basename': validate_job_basename,
-    # 'email': email_update_hook,
     'wall_time': validate_walltime_str
 }
+BASE_CONFIG_UPDATE_HOOKS = SimpleDefaultDict(BASE_CONFIG_UPDATE_HOOKS)
 
 
 ########################################################################
 #                         GLOBAL CONFIG HOOKS                          #
 ########################################################################
 @bindable
-def move_projects(inst: GlobalConfig, new_dir: str) -> None:
+def move_projects(inst: GlobalConfig, new_dir: str) -> str:
     # TODO: write me... this is a tricky one. will need to
     #  inst._cluster.check_output() a 'mv' command for each project in
     #  the old project_dir. Also should confirm
     #  inst._cluster.is_dir(PurePosixPath(new_dir)) first
     # enforce_value_type(value=new_dir, _type=str)
-    pass
+    raise NotImplementedError("Moving project directory is not yet supported")
 
 
 # @bindable
@@ -200,10 +244,11 @@ def move_projects(inst: GlobalConfig, new_dir: str) -> None:
 
 
 @bindable
-def validate_shell_executable(inst: GlobalConfig, new_exe: str) -> None:
+def validate_shell_executable(inst: GlobalConfig, new_exe: str) -> str:
     # update cluster object, which conveniently validates executable
     # enforce_value_type(value=new_exe, _type=str)
     inst._cluster.executable = new_exe
+    return new_exe
 
 
 # @bindable
@@ -238,11 +283,29 @@ def monitor_modules_global(
                          post_update_hook=modules_post_update_global(inst))
 
 
+@bindable
+def monitor_email_list_global(
+        inst: GlobalConfig,
+        new_emails: OneOrMore[str]
+) -> MonitoredList[EmailAddress]:
+    if isinstance(new_emails, str):
+        new_emails = [new_emails]
+    else:
+        new_emails = list(new_emails)
+    for eml in new_emails:
+        validate_email(eml)
+    return MonitoredList(new_emails,
+                         validate_item_hook=validate_email,
+                         post_update_hook=email_post_update_global)
+
+
 GLOBAL_CONFIG_UPDATE_HOOKS = {
     'project_dir': move_projects,
     'executable': validate_shell_executable,
     'default_prefer': check_default_prefer_value,
+    'email_list': monitor_email_list_global
 }
+GLOBAL_CONFIG_UPDATE_HOOKS = SimpleDefaultDict(GLOBAL_CONFIG_UPDATE_HOOKS)
 
 
 ########################################################################
@@ -263,7 +326,6 @@ def monitor_modules_project(
                          post_update_hook=modules_post_update_project(inst))
 
 
-
 @bindable
 def update_config_from_global(inst: ProjectConfig, pref: bool) -> bool:
     # TODO: write me. This one's going to take some pre-planning &
@@ -272,7 +334,26 @@ def update_config_from_global(inst: ProjectConfig, pref: bool) -> bool:
     ...
     return pref
 
+
+@bindable
+def monitor_email_list_project(
+        inst: ProjectConfig,
+        new_emails: OneOrMore[str]
+) -> MonitoredList[EmailAddress]:
+    if isinstance(new_emails, str):
+        new_emails = [new_emails]
+    else:
+        new_emails = list(new_emails)
+    for eml in new_emails:
+        validate_email(eml)
+    return MonitoredList(new_emails,
+                         validate_item_hook=validate_email,
+                         post_update_hook=email_post_update_project)
+
+
 PROJECT_CONFIG_UPDATE_HOOKS = {
     'modules': monitor_modules_project,
-    'use_global_environ': update_config_from_global
+    'use_global_environ': update_config_from_global,
+    'email_list': monitor_email_list_project
 }
+PROJECT_CONFIG_UPDATE_HOOKS = SimpleDefaultDict(PROJECT_CONFIG_UPDATE_HOOKS)
