@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import re
 import time
+from collections import defaultdict
 from functools import wraps
-from typing import Any, Callable, Dict, Literal, TYPE_CHECKING, TypeVar, Union
+from typing import Any, Callable, Dict, Literal, TYPE_CHECKING, TypeVar, Union, Type
 
 if TYPE_CHECKING:
     from clustertools.file_objects.configs.global_config import GlobalConfig
     from clustertools.file_objects.configs.project_config import ProjectConfig
     from clustertools.shared.environ import PseudoEnviron
-    from clustertools.shared.object_monitors import MonitoredList
+    from clustertools.shared.object_monitors import MonitoredEnviron, MonitoredList
     from clustertools.shared.typing import (_BoundHook,
                                             _CheckedVal,
                                             _Config,
@@ -23,47 +24,52 @@ if TYPE_CHECKING:
 EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$')
 
 
-_T = TypeVar('_T')
-class SimpleDefaultDict(dict):
-    # ADD DOCSTRING
-    """
-    Similar to collections.defaultdict, but doesn't add missing keys.
-    Accepts an additional keyword-only argument 'default' that may
-    be either a default value to return for missing keys, or a
-    callable that accepts the missing key as an argument.
-
-    Used here to provide a dummy callable hook for config fields that
-    don't require any special validation or extra work
-    """
-    def __init__(
-            self,
-            *arg,
-            default: Union[_T, Callable[..., _T]] = None,
-            **kwargs
-    ) -> None:
-        # ADD DOCSTRING
-        if len(arg) > 1:
-            raise TypeError(
-                f"{self.__class__.__name__} expected at most 1 argument, got "
-                f"{len(arg)}"
-            )
-        super().__init__(*arg, **kwargs)
-        if callable(default):
-            self.default = default
-        else:
-            self.default = lambda key: default
-
-    def __missing__(self, key: Any) -> _T:
-        return self.default(key)
-
-
-def dummy_hook(inst: _Config, val: _T) -> _T:
-    return val
-
-
 ########################################################################
 #                         CONFIG HOOK HELPERS                          #
 ########################################################################
+# _T = TypeVar('_T')
+# class SimpleDefaultDict(dict):
+#     # ADD DOCSTRING
+#     """
+#     Similar to collections.defaultdict, but doesn't add missing keys.
+#     Accepts an additional keyword-only argument 'default' that may
+#     be either a default value to return for missing keys, or a
+#     callable that accepts the missing key as an argument.
+#
+#     Used here to provide a dummy callable hook for config fields that
+#     don't require any special validation or extra work
+#     """
+#     def __init__(
+#             self,
+#             *arg,
+#             default: Union[_T, Callable[..., _T]] = None,
+#             **kwargs
+#     ) -> None:
+#         # ADD DOCSTRING
+#         if len(arg) > 1:
+#             raise TypeError(
+#                 f"{self.__class__.__name__} expected at most 1 argument, got "
+#                 f"{len(arg)}"
+#             )
+#         super().__init__(*arg, **kwargs)
+#         if callable(default):
+#             self.default = default
+#         else:
+#             self.default = lambda key: default
+#
+#     def __missing__(self, key: Any) -> _T:
+#         return self.default(key)
+#
+#
+# def dummy_hook(inst: _Config, val: _T) -> _T:
+#     return val
+
+
+class ParrotDict(dict):
+    def __missing__(self, key):
+        return key
+
+
 def bindable(
         func: _Hook[[_Config, _UncheckedVal], _CheckedVal]
 ) -> _BoundHook[[_UncheckedVal], _CheckedVal]:
@@ -90,38 +96,110 @@ def bindable(
 #         )
 
 
+########################################################################
+#                           TYPE CONVERTERS                            #
+########################################################################
+                        # Python types -> str #
 def environ_to_str(environ: Union[Dict[str, str], PseudoEnviron]) -> str:
-    str_fmt = '\n'.join(' = '.join(item) for item in environ.items())
+    str_fmt = '\n'.join('='.join(item) for item in environ.items())
     if str_fmt != '':
         str_fmt = '\n' + str_fmt
     return str_fmt
 
 
+to_str_funcs = {
+    bool: lambda b: str(b).lower(),
+    MonitoredList: lambda l: ','.join(l),
+    MonitoredEnviron: environ_to_str
+}
+to_str_funcs = defaultdict(lambda: str, to_str_funcs)
+
+
+def type_to_str(value: Any) -> str:
+    return to_str_funcs[type(value)](value)
+
+
+                        # str -> Python types #
 @bindable
-def write_updated_config(inst: _Config, keys_newvals: Dict[str, Any]) -> None:
-    # TODO: just define this on BaseConfig instead?
-    # called when any changes to the config object are made
-    # keys_newvals is a dict of just-updated fields
-    # function used for TrackedAttrConfig.common_update_hook
-    any_changed = False
-    for sec_name, section in inst._configparser.items():
-        if sec_name == 'DEFAULT':
-            continue
-        for option, value in section.items():
-            if option in keys_newvals:
-                str_newval = inst._type_to_str(key=option, value=keys_newvals[option])
-                if str_newval != value:
-                    section[option] = str_newval
-                    any_changed = True
-            else:
-                continue
-    if any_changed:
-        inst.write_config_file()
+def str_to_environ(inst: _Config, environ_str: str) -> MonitoredEnviron:
+    keys_vals = map(lambda x: x.split('='), environ_str.strip().splitlines())
+    env_dict = {k.strip(): v.strip() for k, v in keys_vals}
+    validate_item_hook = inst._object_validate_hooks['environ']
+    post_update_hook = inst._object_post_update_hooks['environ']
+    return MonitoredEnviron(initial_env=dict(),
+                            custom_vars=env_dict,
+                            validate_item_hook=validate_item_hook,
+                            post_update_hook=post_update_hook)
+
+
+@bindable
+def str_to_modules(inst: _Config, modules_str: str) -> MonitoredList:
+    modules_list = [m.strip() for m in modules_str.strip().split(',')]
+    validate_item_hook = inst._object_validate_hooks['modules']
+    post_update_hook = inst._object_post_update_hooks['modules']
+    return MonitoredList(modules_list,
+                         validate_item_hook=validate_item_hook,
+                         post_update_hook=post_update_hook)
+
+
+@bindable
+def str_to_email_list(inst: _Config, email_str: str) -> MonitoredList:
+    email_list = [m.strip() for m in email_str.strip().split(',')]
+    validate_item_hook = inst._object_validate_hooks['email_list']
+    post_update_hook = inst._object_post_update_hooks['email_list']
+    return MonitoredList(email_list,
+                         validate_item_hook=validate_item_hook,
+                         post_update_hook=post_update_hook)
+
+
+to_type_funcs = {
+    'environ': str_to_environ,
+    'modules': str_to_modules,
+    'email_list': str_to_email_list
+}
+
+@bindable
+def str_to_type(
+        inst: _Config,
+        key: str,
+        value: str
+) -> Union[str, bool, int, MonitoredEnviron[str, str], MonitoredList[str]]:
+    if value == 'true':
+        return True
+    elif value == 'false':
+        return False
+    elif value.isdigit():
+        return int(value)
+    else:
+        try:
+            return inst._to_type_funcs[key]
+        except KeyError:
+            # then it must be a str
+            return value
 
 
 ########################################################################
 #                        MONITORED OBJECT HOOKS                        #
 ########################################################################
+                        # validate_item_hooks #
+def validate_email(email: str) -> None:
+    # used by itself when individual items added to/replaced in
+    # email_list and as part of 'validate_email_list' when entire field
+    # is replaced
+
+    is_valid = bool(email == 'INFER' or EMAIL_PATTERN.match(email))
+    if not is_valid:
+        raise ValueError(
+            f"{email} does not appear to be formatted as a valid email "
+            f"address (you can pass 'infer' to use the default email address "
+            f"for your account)"
+        )
+
+
+BASE_OBJECT_VALIDATE_HOOKS = {'email_list': validate_email}
+
+
+                         # post_update_hooks #
 @bindable
 def environ_post_update_global(inst: GlobalConfig) -> None:
     default_environ = inst._config.project_defaults.runtime_environment.environ
@@ -155,20 +233,6 @@ def modules_post_update_project(inst: ProjectConfig) -> None:
     inst.write_config_file()
 
 
-def validate_email(email: OneOrMore[str]) -> None:
-    # used by itself when individual items added to/replaced in
-    # email_list and as part of 'validate_email_list' when entire field
-    # is replaced
-
-    is_valid = bool(email == 'INFER' or EMAIL_PATTERN.match(email))
-    if not is_valid:
-        raise ValueError(
-            f"{email} does not appear to be formatted as a valid email "
-            f"address (you can pass 'infer' to use the default email address "
-            f"for your account)"
-        )
-
-
 @bindable
 def email_post_update_global(inst: GlobalConfig) -> None:
     emails_str = ','.join(inst._config.project_defaults.notifications.email_list)
@@ -183,6 +247,20 @@ def email_post_update_project(inst: ProjectConfig) -> None:
     emails_str = ','.join(inst._config.notifications.email_list)
     inst._configparser.set('notifications', 'email_list', emails_str)
     inst.write_config_file()
+
+
+GLOBAL_OBJECT_POST_UPDATE_HOOKS = {
+    'environ': environ_post_update_global,
+    'modules': modules_post_update_global,
+    'email_list': email_post_update_global
+}
+
+
+PROJECT_OBJECT_POST_UPDATE_HOOKS = {
+    'environ': environ_post_update_project,
+    'modules': modules_post_update_project,
+    'email_list': email_post_update_project
+}
 
 
 ########################################################################
@@ -218,11 +296,68 @@ def validate_walltime_str(inst: _Config, walltime_str: str) -> WallTimeStr:
     return walltime_str
 
 
+@bindable
+def monitor_modules(
+        inst: _Config,
+        new_modules: OneOrMore[str]
+) -> MonitoredList:
+    # called when config field is *replaced*, rather than edited
+    if isinstance(new_modules, str):
+        new_modules = [new_modules]
+    else:
+        new_modules = list(new_modules)
+    if isinstance(inst, GlobalConfig):
+        post_update_hook = modules_post_update_global
+    else:
+        post_update_hook = modules_post_update_project
+    return MonitoredList(new_modules,
+                         validate_item_hook=None,
+                         post_update_hook=post_update_hook(inst=inst))
+
+
+@bindable
+def monitor_environ(inst: _Config, environ: Dict[str, str]) -> MonitoredEnviron:
+    # called when setting the environ config field, rather than updating
+    # individual variables
+    if not all(isinstance(i, str) for i in sum(environ.items(), ())):
+        raise TypeError("All keys and values in environ mapping must be 'str'")
+    if isinstance(inst, GlobalConfig):
+        post_update_hook = environ_post_update_global
+    else:
+        post_update_hook = environ_post_update_project
+    return MonitoredEnviron(initial_env=dict(),
+                            custom_vars=environ,
+                            validate_item_hook=None,
+                            post_update_hook=post_update_hook(inst=inst))
+
+
+@bindable
+def monitor_email_list(
+        inst: _Config,
+        new_emails: OneOrMore[str]
+) -> MonitoredList[EmailAddress]:
+    if isinstance(new_emails, str):
+        new_emails = [new_emails]
+    else:
+        new_emails = list(new_emails)
+    for eml in new_emails:
+        validate_email(eml)
+    if isinstance(inst, GlobalConfig):
+        post_update_hook = email_post_update_global
+    else:
+        post_update_hook = email_post_update_project
+    return MonitoredList(new_emails,
+                         validate_item_hook=validate_email,
+                         post_update_hook=post_update_hook(inst=inst))
+
+
 BASE_CONFIG_UPDATE_HOOKS = {
     'job_basename': validate_job_basename,
-    'wall_time': validate_walltime_str
+    'wall_time': validate_walltime_str,
+    'modules': monitor_modules,
+    'environ': monitor_environ,
+    'email_list': monitor_email_list
 }
-BASE_CONFIG_UPDATE_HOOKS = SimpleDefaultDict(BASE_CONFIG_UPDATE_HOOKS)
 
 
 ########################################################################
@@ -268,64 +403,16 @@ def check_default_prefer_value(
         )
 
 
-@bindable
-def monitor_modules_global(
-        inst: GlobalConfig,
-        new_modules: OneOrMore[str]
-) -> MonitoredList:
-    # called when config field is *replaced*, rather than edited
-    if isinstance(new_modules, str):
-        new_modules = [new_modules]
-    else:
-        new_modules = list(new_modules)
-    return MonitoredList(new_modules,
-                         validate_item_hook=None,
-                         post_update_hook=modules_post_update_global(inst))
-
-
-@bindable
-def monitor_email_list_global(
-        inst: GlobalConfig,
-        new_emails: OneOrMore[str]
-) -> MonitoredList[EmailAddress]:
-    if isinstance(new_emails, str):
-        new_emails = [new_emails]
-    else:
-        new_emails = list(new_emails)
-    for eml in new_emails:
-        validate_email(eml)
-    return MonitoredList(new_emails,
-                         validate_item_hook=validate_email,
-                         post_update_hook=email_post_update_global)
-
-
 GLOBAL_CONFIG_UPDATE_HOOKS = {
     'project_dir': move_projects,
     'executable': validate_shell_executable,
     'default_prefer': check_default_prefer_value,
-    'email_list': monitor_email_list_global
 }
-GLOBAL_CONFIG_UPDATE_HOOKS = SimpleDefaultDict(GLOBAL_CONFIG_UPDATE_HOOKS)
 
 
 ########################################################################
 #                         PROJECT CONFIG HOOKS                         #
 ########################################################################
-@bindable
-def monitor_modules_project(
-        inst: ProjectConfig,
-        new_modules: OneOrMore[str]
-) -> MonitoredList:
-    # called when config field is *replaced*, rather than edited
-    if isinstance(new_modules, str):
-        new_modules = [new_modules]
-    else:
-        new_modules = list(new_modules)
-    return MonitoredList(new_modules,
-                         validate_item_hook=None,
-                         post_update_hook=modules_post_update_project(inst))
-
-
 @bindable
 def update_config_from_global(inst: ProjectConfig, pref: bool) -> bool:
     # TODO: write me. This one's going to take some pre-planning &
@@ -335,25 +422,6 @@ def update_config_from_global(inst: ProjectConfig, pref: bool) -> bool:
     return pref
 
 
-@bindable
-def monitor_email_list_project(
-        inst: ProjectConfig,
-        new_emails: OneOrMore[str]
-) -> MonitoredList[EmailAddress]:
-    if isinstance(new_emails, str):
-        new_emails = [new_emails]
-    else:
-        new_emails = list(new_emails)
-    for eml in new_emails:
-        validate_email(eml)
-    return MonitoredList(new_emails,
-                         validate_item_hook=validate_email,
-                         post_update_hook=email_post_update_project)
-
-
 PROJECT_CONFIG_UPDATE_HOOKS = {
-    'modules': monitor_modules_project,
-    'use_global_environ': update_config_from_global,
-    'email_list': monitor_email_list_project
+    'use_global_environ': update_config_from_global
 }
-PROJECT_CONFIG_UPDATE_HOOKS = SimpleDefaultDict(PROJECT_CONFIG_UPDATE_HOOKS)

@@ -4,12 +4,16 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
 from clustertools import CLUSTERTOOLS_CONFIG_DIR
-from clustertools.file_objects.config_hooks import (PROJECT_CONFIG_UPDATE_HOOKS,
-                                                    write_updated_config)
-from clustertools.file_objects.base_config import BaseConfig
+from clustertools.file_objects.configs.config_helpers import (
+    ParrotDict,
+    PROJECT_CONFIG_UPDATE_HOOKS,
+    PROJECT_OBJECT_POST_UPDATE_HOOKS,
+    type_to_str
+)
+from clustertools.file_objects.configs.base_config import BaseConfig
 
 if TYPE_CHECKING:
-    from clustertools.file_objects.tracked_attr_config import TrackedAttrConfig
+    from clustertools.file_objects.configs.tracked_attr_config import TrackedAttrConfig
     from clustertools.project.project import Project
 
 
@@ -25,39 +29,30 @@ class ProjectConfig(BaseConfig):
         remote_path = remote_home.joinpath('.clustertools', project.name,
                                            'project_config.ini')
         # needs to happen before _init_local is called
-        self._attr_update_hooks = PROJECT_CONFIG_UPDATE_HOOKS
-        self._project = project
+        self._config_update_hooks = ParrotDict()
+        self._object_post_update_hooks = ParrotDict()
+        self._object_validate_hooks = ParrotDict()
+        for field, hook in PROJECT_CONFIG_UPDATE_HOOKS.items():
+            self._config_update_hooks[field] = hook(self)
+        for field, hook in PROJECT_OBJECT_POST_UPDATE_HOOKS.items():
+            self._object_post_update_hooks[field] = hook(self)
         super().__init__(cluster=cluster,
                          local_path=local_path,
                          remote_path=remote_path)
-
-    def _environ_update_hook(self):
-        environ_str = BaseConfig._environ_to_str(self._config.environ)
-        self._configparser.set('runtime_environment', 'environ', environ_str)
-        self.write_config_file()
+        self._project = project
 
     def _init_local(self):
-        global write_updated_config
         if not self.local_path.is_file():
             if not self.local_path.parent.is_dir():
                 # parents=False, exist_ok=False just as a sanity check
                 # that ~/.clustertools exists already
                 self.local_path.parent.mkdir(parents=False, exist_ok=False)
-            # bind hooks to instance
-            for field, hook in self._attr_update_hooks.items():
-                self._attr_update_hooks[field] = hook(self)
-            write_updated_config = write_updated_config(self)
             self._configparser = self._cluster.config.create_project_config(self._project.name)
             self._config = self._parse_config()
         else:
             # runs self._load_configparser() and self._parse_config() to
             # set self._configparser and self._config
             super()._init_local()
-
-    def _modules_update_hook(self):
-        modules_str = ', '.join(self._config.project_defaults.runtime_environment.modules)
-        self._configparser.set('runtime_environment', 'modules', modules_str)
-        self.write_config_file()
 
     def _parse_config(self) -> TrackedAttrConfig:
         # priority order for project environment variables
@@ -70,7 +65,6 @@ class ProjectConfig(BaseConfig):
         #  - vars set on Cluster object after creation
         #    (if use_global_environ)
         #  - vars passed to Cluster constructor (if use_global_environ)
-        # TODO: additional sources to update this with?
         use_global_environ = self._configparser.getboolean('runtime_environment',
                                                             'use_global_environ')
         if use_global_environ:
@@ -89,6 +83,6 @@ class ProjectConfig(BaseConfig):
                     k.strip(): v.strip() for k, v in project_config_env
                 }
                 custom_global_vars.update(project_config_env)
-                environ_str = BaseConfig._environ_to_str(custom_global_vars)
+                environ_str = type_to_str(custom_global_vars)
                 self._configparser.set('runtime_environment', 'environ', environ_str)
         return super()._parse_config()
