@@ -23,7 +23,10 @@ from clustertools.shared.exceptions import (ClusterToolsProjectError,
 if TYPE_CHECKING:
     from clustertools.cluster import Cluster
     from clustertools.shared.object_monitors import MonitoredEnviron, MonitoredList
-    from clustertools.shared.typing import PathLike, WallTimeStr
+    from clustertools.shared.typing import (EmailAddress,
+                                            NoneOrMore,
+                                            PathLike,
+                                            WallTimeStr)
 
 
 # TODO: add logic so that submitter is only used when there is >1 job to
@@ -87,13 +90,13 @@ class Project:
             n_nodes: Optional[int] = None,
             ppn: Optional[int] = None,
             wall_time: Optional[WallTimeStr] = None,
-            user_to_notify: Optional[str] = None,
+            email: NoneOrMore[EmailAddress] = None,
             notify_all_submitted: Optional[bool] = None,
             notify_all_finished: Optional[bool] = None,
             notify_job_started: Optional[bool] = None,
             notify_job_finished: Optional[bool] = None,
             notify_job_aborted: Optional[bool] = None,
-            notify_job_failed: Optional[bool] = None,
+            # notify_job_failed: Optional[bool] = None,
             notify_collector_finished: Optional[bool] = None,
             auto_monitor_jobs: Optional[bool] = None,
             auto_resubmit_aborted: Optional[bool] = None,
@@ -116,13 +119,13 @@ class Project:
             'n_nodes': n_nodes,
             'ppn': ppn,
             'wall_time': wall_time,
-            'user': user_to_notify,
+            'email_list': email,
             'all_submitted': notify_all_submitted,
             'all_finished': notify_all_finished,
             'job_started': notify_job_started,
             'job_finished': notify_job_finished,
             'job_aborted': notify_job_aborted,
-            'job_failed': notify_job_failed,
+            # 'job_failed': notify_job_failed,
             'collector_finished': notify_collector_finished,
             'auto_monitor_jobs': auto_monitor_jobs,
             'auto_resubmit_aborted': auto_resubmit_aborted,
@@ -351,13 +354,12 @@ class Project:
         self.config.pbs_params.wall_time = new_walltime
 
     @property
-    def user_to_notify(self) -> str:
-        user = self.config.notifications.user
-        return self._cluster.username if user == 'INFER' else user
+    def email_list(self) -> str:
+        return self.config.notifications.email_list
 
-    @user_to_notify.setter
-    def user_to_notify(self, new_user: str) -> None:
-        self.config.notifications.user = new_user
+    @email_list.setter
+    def email_list(self, new_email: str) -> None:
+        self.config.notifications.email_list = new_email
 
     @property
     def notify_all_submitted(self) -> bool:
@@ -399,13 +401,13 @@ class Project:
     def notify_job_aborted(self, pref: bool) -> None:
         self.config.notifications.job_aborted = pref
 
-    @property
-    def notify_job_failed(self) -> bool:
-        return self.config.notifications.job_failed
-
-    @notify_job_failed.setter
-    def notify_job_failed(self, pref: bool) -> None:
-        self.config.notifications.job_failed = pref
+    # @property
+    # def notify_job_failed(self) -> bool:
+    #     return self.config.notifications.job_failed
+    #
+    # @notify_job_failed.setter
+    # def notify_job_failed(self, pref: bool) -> None:
+    #     self.config.notifications.job_failed = pref
 
     @property
     def notify_collector_finished(self) -> bool:
