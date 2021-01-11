@@ -35,7 +35,8 @@ if TYPE_CHECKING:
 #  ppn, etc. from runner jobs
 # TODO: write checks that will run run right before submitting
 # TODO: add methods that call q___ (qdel, qsig, etc.) from pbs man page
-# TODO: remember to include -C self.directive_prefix flag in submit cmd
+# TODO: remember to include -C self.config.directive_prefix flag in
+#  submit cmd
 # TODO(?): support keyword arguments to jobs via exporting as env
 #  variables, types are: Union[Sequence[Sequence[Union[str, int, float]]],
 #                   Sequence[Dict[str, Union[str, int, float]]],
@@ -46,7 +47,8 @@ class Project:
     # ADD DOCSTRING
     # TODO: allow passing scripts as strings? *should* be doable, if
     #  limited in functionality...
-    inferred_executables = {
+
+    _inferred_executables = {
         '.jar': 'java -jar',
         '.jl': 'julia',
         '.m': 'matlab',
@@ -73,74 +75,39 @@ class Project:
             collector_script: Optional[PathLike] = None,
             job_params: Optional[Union[Sequence[Any], Sequence[Sequence[Any]]]] = None,
             params_as_matrix: bool = False,
-            *,
-            # CONFIG FIELDS SETTABLE VIA CONSTRUCTOR
-            # a little egregious maybe, could wrap all these in
-            # **kwargs, but IMO it's helpful to have them visible the
-            # method signature & docstring
-            job_basename: Optional[str] = None,
-            job_executable: Optional[str] = None,
-            modules: Optional[List[str]] = None,
-            env_activate_cmd: Optional[str] = None,
-            env_deactivate_cmd: Optional[str] = None,
-            use_global_environ: Optional[bool] = None,
-            environ_additions: Optional[Dict[str, str]] = None,
-            directive_prefix: Optional[str] = None,
-            queue: Optional[Literal['default', 'largeq']] = None,
-            n_nodes: Optional[int] = None,
-            ppn: Optional[int] = None,
-            wall_time: Optional[WallTimeStr] = None,
-            email: NoneOrMore[EmailAddress] = None,
-            notify_all_submitted: Optional[bool] = None,
-            notify_all_finished: Optional[bool] = None,
-            notify_job_started: Optional[bool] = None,
-            notify_job_finished: Optional[bool] = None,
-            notify_job_aborted: Optional[bool] = None,
-            notify_job_failed: Optional[bool] = None,
-            notify_collector_finished: Optional[bool] = None,
-            auto_monitor_jobs: Optional[bool] = None,
-            auto_resubmit_aborted: Optional[bool] = None,
-            max_resubmit_attempts: Optional[int] = None,
-            auto_submit_collector: Optional[bool] = None,
+            **config_kwargs
     ) -> None:
         self._name = name
         self._cluster = cluster
         # initialize config & update fields
-        self.config = ProjectConfig(self)
-        config_field_updates = {
-            'job_basename': job_basename,
-            'job_executable': job_executable,
-            'modules': modules,
-            'env_activate_cmd': env_activate_cmd,
-            'env_deactivate_cmd': env_deactivate_cmd,
-            'use_global_environ': use_global_environ,
-            'directive_prefix': directive_prefix,
-            'queue': queue,
-            'n_nodes': n_nodes,
-            'ppn': ppn,
-            'wall_time': wall_time,
-            'email_list': email,
-            'all_submitted': notify_all_submitted,
-            'all_finished': notify_all_finished,
-            'job_started': notify_job_started,
-            'job_finished': notify_job_finished,
-            'job_aborted': notify_job_aborted,
-            'job_failed': notify_job_failed,
-            'collector_finished': notify_collector_finished,
-            'auto_monitor_jobs': auto_monitor_jobs,
-            'auto_resubmit_aborted': auto_resubmit_aborted,
-            'max_resubmit_attempts': max_resubmit_attempts,
-            'auto_submit_collector': auto_submit_collector
-        }
-        config_field_updates = {
-            field: val
-            for field, val in config_field_updates.items()
-            if val is not None and val != self.config[field]
-        }
-        if any(config_field_updates):
-            self.config.update(config_field_updates)
-        if any(environ_additions):
-            self.config.environ.update(environ_additions)
+        self._config = ProjectConfig(self)
+        # config_field_updates = {
+        #     'job_basename': job_basename,
+        #     'job_executable': job_executable,
+        #     'modules': modules,
+        #     'env_activate_cmd': env_activate_cmd,
+        #     'env_deactivate_cmd': env_deactivate_cmd,
+        #     'use_global_environ': use_global_environ,
+        #     'directive_prefix': directive_prefix,
+        #     'queue': queue,
+        #     'n_nodes': n_nodes,
+        #     'ppn': ppn,
+        #     'wall_time': wall_time,
+        #     'email_list': email,
+        #     'all_submitted': notify_all_submitted,
+        #     'all_finished': notify_all_finished,
+        #     'job_started': notify_job_started,
+        #     'job_finished': notify_job_finished,
+        #     'job_aborted': notify_job_aborted,
+        #     'job_failed': notify_job_failed,
+        #     'collector_finished': notify_collector_finished,
+        #     'auto_monitor_jobs': auto_monitor_jobs,
+        #     'auto_resubmit_aborted': auto_resubmit_aborted,
+        #     'max_resubmit_attempts': max_resubmit_attempts,
+        #     'auto_submit_collector': auto_submit_collector
+        # }
+        if any(config_kwargs):
+            self.config.update(config_kwargs)
         # initialize remote directory structure for project
         for remote_dir in (self.stdout_dir,
                            self.stderr_dir,
@@ -150,7 +117,7 @@ class Project:
             self._cluster.mkdir(remote_dir, parents=True, exist_ok=True)
         # initialize script objects
         self._init_submitter()
-        if self.auto_monitor_jobs:
+        if self.config.monitoring.auto_monitor_jobs:
             self._init_monitor()
         else:
             self._monitor_script: Optional[ProjectScript] = None
@@ -179,6 +146,22 @@ class Project:
             self.parametrize_jobs(job_params, as_matrix=params_as_matrix)
 
     @property
+    def config(self) -> ProjectConfig:
+        return self._config
+
+    @config.setter
+    def config(self, _: Any) -> NoReturn:
+        raise AttributeError(
+            "Cannot overwrite ProjectConfig object. To update "
+            "configuration fields, use 'project.configure()' or set "
+            "attributes on 'project.config' directly"
+        )
+
+    @config.deleter
+    def config(self) -> NoReturn:
+        raise AttributeError("Cannot delete 'project.config' attribute")
+
+    @property
     def name(self):
         return self._name
 
@@ -190,18 +173,20 @@ class Project:
         ...
         self._name = new_name
 
-    ##########################################################
-    #                 CONFIG-DEPENDENT PATHS                 #
-    ##########################################################
+    ####################################################################
+    #                         PATH PROPERTIES                          #
+    ####################################################################
     # name, root_dir, input_datadir, output_datadir, and script_dir are
     # constructed on-the-fly like this so that:
-    #  - they can be kept in sync with the relevant fields in self.config
+    #  - they can be kept in sync with the relevant fields in
+    #    self.config and self._cluster.config
     #  - changing each of these path components involves a slightly
-    #    different 'mv'/'rename' command, and dealing with them separately
-    #    makes the corresponding code much simpler
+    #    different 'mv'/'rename' command, and dealing with them
+    #    separately makes the corresponding code much simpler
     #  - property setup prevents users from changing multiple components
-    #    at once (e.g., just setting self.input_datadir to something totally
-    #    different) which would be difficult to code around defensively
+    #    at once (e.g., just setting self.input_datadir to something
+    #    totally different) which would be difficult to code around
+    #    defensively
     #  - path components are simpler to store when unloading project,
     #    quicker update on global config field change while project is
     #    unloaded, and easier to reconstruct when reloading later
@@ -233,226 +218,33 @@ class Project:
     def wrapper_dir(self) -> PurePosixPath:
         return self.script_dir.joinpath('wrappers')
 
-    ##########################################################
-    #           OTHER CONFIG-DEPENDENT PROPERTIES            #
-    ##########################################################
-    # making these attributes properties allows them to be linked
-    # directly to the relevant config fields so that:
-    #  - they never get out of sync with the file, whether changes are
-    #    made within python to the object attrs or the config object,
-    #    or directly to the config file
-    #  - their setters can use the validation functions already assigned
-    #    to run when updating the config fields
-    #  - more info about this object is accessible via the config file,
-    #    saving overhead when saving & reloading project state
-    @property
-    def job_basename(self) -> str:
-        basename = self.config.general.job_basename
-        return self.name if basename == 'INFER' else basename
-
-    @job_basename.setter
-    def job_basename(self, new_name: str) -> None:
-        self.config.general.job_basename = new_name
-
-    @property
-    def job_executable(self) -> str:
-        job_executable = self.config.general.job_executable
-        if job_executable == 'INFER' and self.job_script is not None:
-            return self._infer_job_executable()
-        return job_executable
-
-    @job_executable.setter
-    def job_executable(self, new_cmd) -> None:
-        self.config.general.job_executable = new_cmd
-
-    @property
-    def modules(self) -> MonitoredList:
-        return self.config.runtime_environment.modules
-
-    @modules.setter
-    def modules(self, new_module_list: List[str]) -> None:
-        new_module_list = MonitoredList(new_module_list,
-                                        update_hook=self.config._modules_update_hook)
-        self.config.runtime_environment.modules = new_module_list
-
-    @property
-    def env_activate_cmd(self) -> str:
-        return self.config.runtime_environment.env_activate_cmd
-
-    @env_activate_cmd.setter
-    def env_activate_cmd(self, new_cmd: str) -> None:
-        self.config.runtime_environment.env_activate_cmd = new_cmd
-
-    @property
-    def env_deactivate_cmd(self) -> str:
-        return self.config.runtime_environment.env_deactivate_cmd
-
-    @env_deactivate_cmd.setter
-    def env_deactivate_cmd(self, new_cmd: str) -> None:
-        self.config.runtime_environment.env_deactivate_cmd = new_cmd
-
+    ####################################################################
+    #            CONFIG FIELDS ACCESSIBLE ON PROJECT OBJECT            #
+    ####################################################################
+    # These are likely to be frequently accessed and from an API
+    # standpoint make sense as attributes of the Project itself.
+    # Written as properties to ensure changes made here, to the config
+    # object, and directly to the config file are reflected in all three
+    # places
     @property
     def use_global_environ(self) -> bool:
         return self.config.runtime_environment.use_global_environ
 
     @use_global_environ.setter
     def use_global_environ(self, use: bool) -> None:
+        # updating with values from global environ handled in project
+        # config update hooks
         self.config.runtime_environment.use_global_environ = use
 
     @property
     def environ(self) -> MonitoredEnviron:
         return self.config.runtime_environment.environ
 
-    @property
-    def directive_prefix(self) -> str:
-        prefix = self.config.pbs_params.directive_prefix
-        if prefix == 'INFER':
-            prefix = self.config.runtime_environment.environ.get('PBS_DPREFIX', 'PBS')
-        return prefix
-
-    @directive_prefix.setter
-    def directive_prefix(self, new_prefix: str) -> None:
-        self.config.pbs_params.directive_prefix = new_prefix
-
-    @property
-    def queue(self) -> Literal['default', 'largeq']:
-        q = self.config.pbs_params.queue
-        if q == 'INFER':
-            # Dartmouth Discovery cluster policy: batches of >600 jobs
-            # should be submitted to largeq
-            # PyCharm bug: Literals aren't detected in ternaries
-            # noinspection PyTypeChecker
-            return 'largeq' if len(self.jobs) > 600 else 'default'
-        return q
-
-    @queue.setter
-    def queue(self, new_queue: Literal['default', 'largeq', 'INFER']) -> None:
-        self.config.pbs_params.queue = new_queue
-
-    @property
-    def n_nodes(self) -> int:
-        return self.config.pbs_params.n_nodes
-
-    @n_nodes.setter
-    def n_nodes(self, new_nnodes: int) -> None:
-        self.config.pbs_params.n_nodes = new_nnodes
-
-    @property
-    def ppn(self) -> int:
-        return self.config.pbs_params.ppn
-
-    @ppn.setter
-    def ppn(self, new_ppn: int) -> None:
-        self.config.pbs_params.ppn = new_ppn
-
-    @property
-    def wall_time(self) -> WallTimeStr:
-        return self.config.pbs_params.wall_time
-
-    @wall_time.setter
-    def wall_time(self, new_walltime: WallTimeStr) -> None:
-        self.config.pbs_params.wall_time = new_walltime
-
-    @property
-    def email_list(self) -> str:
-        return self.config.notifications.email_list
-
-    @email_list.setter
-    def email_list(self, new_email: str) -> None:
-        self.config.notifications.email_list = new_email
-
-    @property
-    def notify_all_submitted(self) -> bool:
-        return self.config.notifications.all_submitted
-
-    @notify_all_submitted.setter
-    def notify_all_submitted(self, pref: bool) -> None:
-        self.config.notifications.all_submitted = pref
-
-    @property
-    def notify_all_finished(self) -> bool:
-        return self.config.notifications.all_finished
-
-    @notify_all_finished.setter
-    def notify_all_finished(self, pref: bool) -> None:
-        self.config.notifications.all_finished = pref
-
-    @property
-    def notify_job_started(self) -> bool:
-        return self.config.notifications.job_started
-
-    @notify_job_started.setter
-    def notify_job_started(self, pref: bool) -> None:
-        self.config.notifications.job_started = pref
-
-    @property
-    def notify_job_finished(self) -> bool:
-        return self.config.notifications.job_finished
-
-    @notify_job_finished.setter
-    def notify_job_finished(self, pref: bool) -> None:
-        self.config.notifications.job_finished = pref
-
-    @property
-    def notify_job_aborted(self) -> bool:
-        return self.config.notifications.job_aborted
-
-    @notify_job_aborted.setter
-    def notify_job_aborted(self, pref: bool) -> None:
-        self.config.notifications.job_aborted = pref
-
-    @property
-    def notify_job_failed(self) -> bool:
-        return self.config.notifications.job_failed
-
-    @notify_job_failed.setter
-    def notify_job_failed(self, pref: bool) -> None:
-        self.config.notifications.job_failed = pref
-
-    @property
-    def notify_collector_finished(self) -> bool:
-        return self.config.notifications.collector_finished
-
-    @notify_collector_finished.setter
-    def notify_collector_finished(self, pref: bool) -> None:
-        self.config.notifications.collector_finished = pref
-
-    @property
-    def auto_monitor_jobs(self) -> bool:
-        return self.config.monitoring.auto_monitor_jobs
-
-    @auto_monitor_jobs.setter
-    def auto_monitor_jobs(self, pref: bool) -> None:
-        self.config.monitoring.auto_monitor_jobs = pref
-        if pref is True:
-            self._init_monitor()
-        else:
-            self._monitor_script = None
-            self._monitor = None
-
-    @property
-    def auto_resubmit_aborted(self) -> bool:
-        return self.config.monitoring.auto_resubmit_aborted
-
-    @auto_resubmit_aborted.setter
-    def auto_resubmit_aborted(self, pref: bool) -> None:
-        self.config.monitoring.auto_resubmit_aborted = pref
-
-    @property
-    def max_resubmit_attempts(self) -> bool:
-        return self.config.monitoring.max_resubmit_attempts
-
-    @max_resubmit_attempts.setter
-    def max_resubmit_attempts(self, max_retries: int) -> None:
-        self.config.monitoring.max_resubmit_attempts = max_retries
-
-    @property
-    def auto_submit_collector(self) -> bool:
-        return self.config.monitoring.auto_submit_collector
-
-    @auto_submit_collector.setter
-    def auto_submit_collector(self, pref: bool) -> None:
-        self.config.monitoring.auto_submit_collector = pref
+    @environ.setter
+    def environ(self, env_dict: Dict[str, str]) -> None:
+        # validation and conversion to MonitoredEnviron handled by
+        # TrackedAttrConfig update hook
+        self.config.runtime_environment.environ = env_dict
 
     ##########################################################
     #                SCRIPT OBJECT PROPERTIES                #
@@ -604,6 +396,41 @@ class Project:
             else:
                 self.parametrize_jobs(self._raw_job_params, as_matrix=as_matrix)
 
+    ####################################################################
+    #                      CONFIG "INFER" HELPERS                      #
+    ####################################################################
+    # methods that handle filling values for project config fields that
+    # default to "INFER", so their values can be determined based on
+    # other fields or properties of the Project object
+    def _infer_job_basename(self) -> str:
+        basename = self.config.general.job_basename
+        return self.name if basename == 'INFER' else basename
+
+    def _infer_job_executable(self) -> str:
+        # TODO: add more options to Project._inferred_executables
+        suffix = self.job_script.local_path.suffix
+        if suffix == '.sh':
+            return self._cluster.executable
+        else:
+            return Project._inferred_executables.get(suffix, 'INFER')
+
+    def _infer_directive_prefix(self) -> str:
+        prefix = self.config.pbs_params.directive_prefix
+        if prefix == 'INFER':
+            prefix = self.config.runtime_environment.environ.get('PBS_DPREFIX',
+                                                                 'PBS')
+        return prefix
+
+    def _infer_queue(self) -> Literal['default', 'largeq']:
+        q = self.config.pbs_params.queue
+        if q == 'INFER':
+            # Dartmouth Discovery cluster policy: batches of >600 jobs
+            # should be submitted to largeq
+            # PyCharm bug: Literals aren't detected in ternaries
+            # noinspection PyTypeChecker
+            return 'largeq' if len(self.jobs) > 600 else 'default'
+        return q
+
     ##########################################################
     #                PROJECT STATE PROPERTIES                #
     ##########################################################
@@ -616,13 +443,6 @@ class Project:
     ##########################################################
     #                  MISC. HELPER METHODS                  #
     ##########################################################
-    def _infer_job_executable(self) -> str:
-        # TODO: add more options
-        suffix = self.job_script.local_path.suffix
-        inferred_executables = Project.inferred_executables
-        inferred_executables['.sh'] = self._cluster.executable
-        return inferred_executables.get(suffix, 'INFER')
-
     # the "submitter" and "monitor" Job & ProjectScript objects are
     # slightly different from the others. First, their scripts' contents
     # are agnostic to the purpose of the actual project/jobs. Their
@@ -667,11 +487,14 @@ class Project:
         # pre-submit job is queued and its jobid is available
         self._submitter = Job(project=self, script=submitter_script, kind='submitter')
 
-    # def configure(self):
-    #     # ADD DOCSTRING - walks user through setting parameters
-    #     #  interactively
-    #     # TODO: write me
-    #     pass
+    ####################################################################
+    #                          PUBLIC METHODS                          #
+    ####################################################################
+    def configure(self, **config_options):
+        # ADD DOCSTRING - updates self.config, accepts fields names as
+        #  args & updates fields to values passed to them
+        self.config.update(**config_options)
+        pass
 
     def check_submittable(self) -> bool:
         # ADD DOCSTRING
@@ -685,7 +508,7 @@ class Project:
                 "No job script specified. Set 'project.job_script' to the path "
                 "to the file you want to use to run individual jobs."
             )
-        if self.job_params is None and self.job_script.expects_args:
+        elif self.job_params is None and self.job_script.expects_args:
             raise ProjectConfigurationError(
                 "Failed to assemble jobs for submission: job scripts appear to "
                 "expect command line arguments and no job parameters were "
@@ -693,20 +516,22 @@ class Project:
                 "'project.job_params' and 'project.params_as_matrix' to "
                 "provide parameters for each job"
             )
-        if self.auto_resubmit and not self.auto_monitor_jobs:
+        elif (self.config.monitoring.auto_resubmit_jobs
+              and not self.config.monitoring.auto_monitor_jobs):
             raise ProjectConfigurationError(
                 "Auto job monitoring must be enabled to automatically resubmit "
                 "aborted jobs. Please set 'project.auto_monitor_jobs = True' "
                 "to enable auto monitoring, or 'project.auto_resubmit = False' "
                 "to disable auto resubmission"
             )
-        if bool(self.env_activate_cmd) is not bool(self.env_deactivate_cmd):
+        elif (bool(self.config.runtime_environment.env_activate_cmd)
+              is not bool(self.config.runtime_environment.env_deactivate_cmd)):
             raise ProjectConfigurationError(
                 "If running jobs inside a virtual environment, you must "
                 "provide both a command to activate/enter the environment and "
                 "a command to deactivate/exit it afterward"
             )
-        if self.job_executable == 'INFER':
+        elif self.config.general.job_executable == 'INFER':
             raise ProjectConfigurationError(
                 "Unable to infer a command for running a job script ending in "
                 f"'{self.job_script.local_path.suffix}'. Please set "
