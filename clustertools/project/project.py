@@ -96,7 +96,7 @@ class Project:
             notify_job_started: Optional[bool] = None,
             notify_job_finished: Optional[bool] = None,
             notify_job_aborted: Optional[bool] = None,
-            # notify_job_failed: Optional[bool] = None,
+            notify_job_failed: Optional[bool] = None,
             notify_collector_finished: Optional[bool] = None,
             auto_monitor_jobs: Optional[bool] = None,
             auto_resubmit_aborted: Optional[bool] = None,
@@ -125,7 +125,7 @@ class Project:
             'job_started': notify_job_started,
             'job_finished': notify_job_finished,
             'job_aborted': notify_job_aborted,
-            # 'job_failed': notify_job_failed,
+            'job_failed': notify_job_failed,
             'collector_finished': notify_collector_finished,
             'auto_monitor_jobs': auto_monitor_jobs,
             'auto_resubmit_aborted': auto_resubmit_aborted,
@@ -401,13 +401,13 @@ class Project:
     def notify_job_aborted(self, pref: bool) -> None:
         self.config.notifications.job_aborted = pref
 
-    # @property
-    # def notify_job_failed(self) -> bool:
-    #     return self.config.notifications.job_failed
-    #
-    # @notify_job_failed.setter
-    # def notify_job_failed(self, pref: bool) -> None:
-    #     self.config.notifications.job_failed = pref
+    @property
+    def notify_job_failed(self) -> bool:
+        return self.config.notifications.job_failed
+
+    @notify_job_failed.setter
+    def notify_job_failed(self, pref: bool) -> None:
+        self.config.notifications.job_failed = pref
 
     @property
     def notify_collector_finished(self) -> bool:
