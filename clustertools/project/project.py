@@ -678,6 +678,8 @@ class Project:
         # returns True if all requirements to submit jobs are met
         # TODO: add check for whether or not self.pre_submit, jobs, and
         #  self.collector .expects_args
+        # TODO: require explicitly passing email address(es) for
+        #  'on_failed' notification options
         if self.job_script is None:
             raise ClusterToolsProjectError(
                 "No job script specified. Set 'project.job_script' to the path "

@@ -113,6 +113,7 @@ class Job:
                                                       f'{environ_fmt}')
         else:
             field_vals['environ_export_directive'] = ''
+        field_vals['mail_options'] = ''
         if self.kind in ('runner', 'collector', 'pre_submit'):
             field_vals['job_executable']: proj.job_executable
             field_vals['n_nodes']: proj.n_nodes
@@ -129,6 +130,8 @@ class Job:
                 field_vals['module_load_cmd'] = ''
             if self.kind == 'collector':
                 field_vals['hold_directive'] = '#${directive_prefix} -h'
+                if proj.notify_collector_finished:
+                    field_vals['mail_options'] += 'e'
             else:
                 field_vals['hold_directive'] = ''
         else:
@@ -156,16 +159,32 @@ class Job:
                 secs = total_secs % 3600 % 60
                 field_vals['wall_time'] = f'{hrs:02d}:{mins:02d}:{secs:02d}'
                 if proj.notify_all_submitted:
-                    field_vals['mail_options'] = ''
+                    field_vals['mail_options'] += 'e'
                 if proj.pre_submit_script is not None:
                     field_vals['dependency_directive'] = ('#${directive_prefix} '
                                                           '-W depend=afterok:$1')
-
             else:
                 # self.kind == 'monitor'
                 # estimate walltime based on jobs' walltime, given that
                 # not all start from the queue at the same time (up to
                 # 1 day max)
+                # also, the datetime library sucks
+                try:
+                    hrs, mins, secs = map(int, proj.wall_time.split(':'))
+                except ValueError:
+                    mins, secs = map(int, proj.wall_time.split(':'))
+                    hrs = 0
+                total_secs = hrs * 3600 + mins * 60 + secs
+                double_job_walltime = total_secs * 2
+                monitor_walltime = min(double_job_walltime, 86400)  # 24 hours
+                hrs = monitor_walltime // 3600
+                mins = monitor_walltime % 3600 // 60
+                secs = monitor_walltime % 3600 % 60
+                field_vals['wall_time'] = f'{hrs:02d}:{mins:02d}:{secs:02d}'
+                if proj.notify_all_finished:
+                    field_vals['mail_options'] += 'e'
+
+
 
 
 
@@ -173,7 +192,7 @@ class Job:
         # TODO: make sure this checks for proper values in final field format
         email_addrs = self._project.config.notifications.email_list
         if field_vals['mail_options'] == 'n' or self._project.email_list == 'INFER':
-            # emails will be sent to default email address for submitting user
+            # emails (if any) will be sent to the user's default email address
             field_vals['email_directive'] = ''
         else:
             field_vals['email_directive'] = '#${directive_prefix} -M ${user}'
