@@ -422,6 +422,18 @@ def update_config_from_global(inst: ProjectConfig, pref: bool) -> bool:
     return pref
 
 
+@bindable
+def init_project_job_monitor(inst: ProjectConfig, pref: bool) -> bool:
+    # initializes a monitor Job object on the associated Project object
+    # when auto_monitor_jobs is set to True, removes it when set to False
+    if pref and not inst._config.monitoring.auto_monitor_jobs:
+        inst._project._init_monitor()
+    elif not pref:
+        inst._project._monitor_script = inst._project._monitor = None
+    return pref
+
+
 PROJECT_CONFIG_UPDATE_HOOKS = {
-    'use_global_environ': update_config_from_global
+    'use_global_environ': update_config_from_global,
+    'auto_monitor_jobs': init_project_job_monitor
 }
