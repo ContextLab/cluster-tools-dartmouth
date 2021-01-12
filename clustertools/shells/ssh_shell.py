@@ -185,12 +185,13 @@ class SshShellMixin:
 
     def is_file(self, path: PathLike) -> bool:
         # ADD DOCSTRING
-        # no Pythonic way to do this between spurplus/spur/paramiko,
-        # so going for the roundabout bash way
         path = self.resolve_path(path, strict=False)
-        output = self.shell.run([self.executable, '-c', f'test -f {path}'],
-                                allow_error=True)
-        return not bool(output.return_code)
+        try:
+            if self.shell.exists(path) and not self.shell.is_dir(path):
+                return True
+            return False
+        except FileNotFoundError:
+            return False
 
     def listdir(self, path: PathLike = '.') -> List[str]:
         # ADD DOCSTRING
