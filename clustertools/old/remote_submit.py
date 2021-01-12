@@ -3,7 +3,7 @@ from os.path import dirname, realpath, join as opj
 from spurplus import connect_with_retries
 from .upload_scripts import upload_scripts
 from .cluster_scripts.config import job_config
-from ._helpers import (
+from clustertools.old.helpers import (
                         attempt_load_config,
                         fmt_remote_commands,
                         parse_config,
@@ -20,7 +20,7 @@ def remote_submit(sync_changes=False, config_path=None):
     changes to cluster scripts before submitting jobs
     :param config_path: (str, optional, default: None) path to your config file.
     If you created your config following the instructions in
-    configs/template_config.ini, you can simply leave this empty
+    file_objects/template_config.ini, you can simply leave this empty
     :return: None (other than some hopefully some results, eventually!)
     """
     if config_path is None:
@@ -56,7 +56,7 @@ def remote_submit(sync_changes=False, config_path=None):
             script_dir = opj(dirname(realpath(__file__)), 'cluster_scripts')
             upload_scripts(cluster, script_dir, job_config, confirm_overwrite)
 
-        # create bash script to submit and run submit.py from compute node
+        # create bash script to submit and run submit_old.py from compute node
         submitter_filepath = write_remote_submitter(
                                                     cluster,
                                                     job_config,

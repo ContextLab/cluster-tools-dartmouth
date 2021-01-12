@@ -1,7 +1,7 @@
 import os
 from os.path import dirname, realpath, join as opj
 from spurplus import connect_with_retries
-from ._helpers import md5_checksum, attempt_load_config, prompt_input
+from clustertools.old.helpers import md5_checksum, attempt_load_config, prompt_input
 from .cluster_scripts.config import job_config
 
 

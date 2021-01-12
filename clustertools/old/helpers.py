@@ -17,7 +17,7 @@ def attempt_load_config():
             # get path to project root directory
             splitroot = splitpath[: splitpath.index('cluster-tools-dartmouth') + 1]
             project_root = pathsep.join(splitroot)
-            config_dir = opj(project_root, 'configs')
+            config_dir = opj(project_root, 'file_objects')
         except ValueError as e:
             # pass exceptions onto broad outer exception for function
             raise FileNotFoundError(f"cluster-tools-dartmouth not found in path\
@@ -40,23 +40,6 @@ def attempt_load_config():
     except FileNotFoundError as e:
         raise FileNotFoundError("Failed to load config file from expected \
         location").with_traceback(e.__traceback__)
-
-
-def fmt_remote_commands(commands):
-    """
-    Formats a list-like iterable of shell commands to be run in the SshShell
-    instance. Necessary because underlying Python SSH client (Paramiko) won't
-    run any state changes between commands.  So we run them all at once.
-    """
-    assert hasattr(commands, "__iter__"), \
-        "Commands passed to fmt_remote_commands must be as an iterable (i.e., \
-        list-like) object"
-
-    executable = ['bash', '-c']
-    # TODO: switch to ; sep?
-    commands_str = [' && '.join(commands)]
-
-    return executable + commands_str
 
 
 def get_qstat(remote_shell, options=None):
@@ -105,7 +88,7 @@ def md5_checksum(filepath):
 
 def parse_config(config_path):
     """
-    parses various user-specifc options from config file in configs dir
+    parses various user-specifc options from config file in file_objects dir
     """
     config_path = realpath(config_path)
     if not isfile(config_path):

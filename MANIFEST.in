@@ -1,0 +1,2 @@
+# include template files in source distribution
+graft clustertools/templates
