@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 class ProjectConfig(BaseConfig):
     # ADD DOCSTRING
+    # TODO: fill in <INFER> in job_executable field for __str__ method
     def __init__(self, project: Project):
         # ADD DOCSTRING
         # currently, cluster.connected is guaranteed to be True at this point

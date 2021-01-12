@@ -22,7 +22,6 @@ class Job:
         #${directive_prefix} -l nodes=${n_nodes}:ppn=${ppn}
         #${directive_prefix} -l walltime=${wall_time}
         ${dependency_directive}
-        ${hold_directive}
         ${environ_export_directive}
         ${email_directive}
         ${mail_options_directive}
@@ -107,15 +106,15 @@ class Job:
         # checks and namespace lookups run by the interpreter at the
         # expense of including duplicate LOC
         field_vals = dict()
-        proj_environ = proj.environ
-        if any(proj_environ):
-            environ_fmt = ','.join('='.join(item) for item in proj_environ.items()),
+        email_addrs = ','.join(config.notifications.email)
+        field_vals['mail_options'] = ''
+        if any(proj.environ):
+            environ_fmt = ','.join('='.join(item) for item in proj.environ.items()),
             # if set, environment variables are exported to all job types
             field_vals['environ_export_directive'] = ('#${directive_prefix} -v '
                                                       f'{environ_fmt}')
         else:
             field_vals['environ_export_directive'] = ''
-        field_vals['mail_options'] = ''
         if self.kind in ('runner', 'collector', 'pre_submit'):
             field_vals['job_executable'] = config.general.job_executable
             field_vals['n_nodes'] = config.pbs_params.n_nodes
@@ -124,18 +123,17 @@ class Job:
             modules = ' '.join(config.runtime_environment.modules)
             field_vals['dependency_directive'] = ''
             if any(modules):
+                # TODO: make sure the spacing/alignment of these
+                #  multiline strings are getting left-aligned properly
                 cmd = f"""echo "loading modules: {modules}" 
                           module load ${modules}
                        """.splitlines()
                 field_vals['module_load_cmd'] = '\n'.join(map(str.lstrip, cmd))
             else:
                 field_vals['module_load_cmd'] = ''
-            if self.kind == 'collector':
-                field_vals['hold_directive'] = '#${directive_prefix} -h'
-                if config.notifications.collector_finished:
+            if (self.kind == 'collector'
+                and config.notifications.collector_finished):
                     field_vals['mail_options'] += 'e'
-            else:
-                field_vals['hold_directive'] = ''
         else:
             # TODO: find a cleaner way of doing this so the loaded
             #  module becomes the default 'python'. Will need to account
@@ -145,9 +143,8 @@ class Job:
             field_vals['job_executable'] = 'python3.7'
             field_vals['n_nodes'] = 1
             field_vals['ppn'] = 1
-            field_vals['hold_directive'] = ''
             # TODO: this is currently Dartmouth/Discovery-specific.
-            module_cmd = """echo "loading modules: python/3.7-Anaconda
+            module_cmd = """echo "loading modules: python/3.7-Anaconda"
                             module load python/3.7-Anaconda
                          """.splitlines()
             field_vals['module_load_cmd'] = '\n'.join(map(str.lstrip, module_cmd))
@@ -160,9 +157,9 @@ class Job:
                 mins = total_secs % 3600 // 60
                 secs = total_secs % 3600 % 60
                 field_vals['wall_time'] = f'{hrs:02d}:{mins:02d}:{secs:02d}'
-                if config.notifications.all_submitted:
-                    field_vals['mail_options'] += 'e'
                 if proj.pre_submit_script is not None:
+                    # submitter will wait until pre-submit script (jobid
+                    # passed as $1) finishes successfully before running
                     field_vals['dependency_directive'] = ('#${directive_prefix} '
                                                           '-W depend=afterok:$1')
             else:
@@ -187,52 +184,41 @@ class Job:
                     field_vals['mail_options'] += 'e'
 
 
-
-
-
-
-        # TODO: make sure this checks for proper values in final field format
-        email_addrs = self._project.config.notifications.email
-        if field_vals['mail_options'] == 'n' or len(self._project.config.notifications.email) == 0:
-            # emails (if any) will be sent to the user's default email address
+        if field_vals['mail_options'] == '':
+            field_vals['mail_options'] = 'n'
+            field_vals['email_directive'] = ''
+        if len(email_addrs) == 0:
             field_vals['email_directive'] = ''
         else:
-            field_vals['email_directive'] = '#${directive_prefix} -M ${user}'
+            field_vals['email_directive'] = ('#${directive_prefix} -M '
+                                             f'{email_addrs}')
+
         # substitute and convert back to template
         partial_wrapper = Job._wrapper_template.safe_substitute(field_vals)
         partial_template = Template(partial_wrapper)
         # then fill in remaining fields
         field_vals = {
-            'directive_prefix': proj.directive_prefix,
+            'directive_prefix': config.pbs_params.directive_prefix,
             'job_name': self.name,
             'project_root': proj.root_dir,
             'stdout_path': self.stdout_path,
             'stderr_path': self.stderr_path,
-            'queue': proj.queue,
-            'user': proj.user_to_notify,
-
+            'queue': config.pbs_params.queue,
         }
-
-
-
-
-
-
-
         # only have to check one of the two virtual environment commands,
         # 'Project.check_submittable()' ensures either both or neither
         # is set
-        if proj.env_activate_cmd:
-            a_cmd = f"""echo "activating environment
-                    {proj.env_activate_cmd}
+        if config.runtime_environment.env_activate_cmd:
+            a_cmd = f"""echo "activating environment"
+                    {config.runtime_environment.env_activate_cmd}
                     """
             d_cmd = f"""
                     echo "deactivating environment"
-                    {proj.env_deactivate_cmd}"""
-            a_cmd_fmt = '\n'.join(map(str.lstrip, a_cmd.splitlines()))
-            d_cmd_fmt = '\n'.join(map(str.lstrip, d_cmd.splitlines()))
-            field_vals['env_activate_cmd'] = a_cmd_fmt
-            field_vals['env_deactivate_cmd'] = d_cmd_fmt
+                    {config.runtime_environment.env_deactivate_cmd}"""
+            a_cmd = '\n'.join(map(str.lstrip, a_cmd.splitlines()))
+            d_cmd = '\n'.join(map(str.lstrip, d_cmd.splitlines()))
+            field_vals['env_activate_cmd'] = a_cmd
+            field_vals['env_deactivate_cmd'] = d_cmd
         else:
             field_vals['env_activate_cmd'] = ''
             field_vals['env_deactivate_cmd'] = ''

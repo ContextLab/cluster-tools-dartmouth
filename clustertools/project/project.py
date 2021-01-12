@@ -385,15 +385,9 @@ class Project:
             return self._cluster.executable
         else:
             return Project._inferred_executables.get(suffix, '<INFER>')
-    #
-    # def _infer_directive_prefix(self) -> str:
-    #     prefix = self.config.pbs_params.directive_prefix
-    #     if prefix == 'INFER':
-    #         prefix = self.config.runtime_environment.environ.get('PBS_DPREFIX',
-    #                                                              'PBS')
-    #     return prefix
 
-    def _infer_queue(self) -> Literal['default', 'largeq']:
+    def _infer_queue(self) -> Literal['default', 'largeq', 'testq', 'gpuq']:
+        # TODO: write conditions under which this returns testq/gpuq
         q = self.config.pbs_params.queue
         if q == '<INFER>':
             # Dartmouth Discovery cluster policy: batches of >600 jobs
@@ -474,7 +468,8 @@ class Project:
         # TODO: add check for whether or not self.pre_submit, jobs, and
         #  self.collector .expects_args
         # TODO: require explicitly passing email address(es) for
-        #  'on_failed' notification options
+        #  'all_submitted', 'job_failed' notification options
+        # TODO: raise error if queue is default and > 600 jobs
         if self.job_script is None:
             raise ClusterToolsProjectError(
                 "No job script specified. Set 'project.job_script' to the path "
