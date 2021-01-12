@@ -327,6 +327,7 @@ class SshShellMixin:
             username: Optional[str] = None,
             password: Optional[str] = None,
             use_key: bool = False,
+            login: bool = False,
             port: Optional[int] = None,
             timeout: int = 60,
             retries: int = 0,
@@ -361,7 +362,10 @@ class SshShellMixin:
         if self._environ is None:
             # read environment variables
             tmp_exe = self.executable or '/bin/bash'
-            printenv_command = [tmp_exe, '-lc', 'printenv']
+            if login:
+                printenv_command = [tmp_exe, '-lc', 'printenv']
+            else:
+                printenv_command = ['printenv']
             # TODO: a more robust solution for this in case BASH_FUNC_module isn't last
             initial_env = self.shell.check_output(printenv_command).split('\nBASH_FUNC_module()')[0]
             initial_env = dict(map(lambda x: x.split('=', maxsplit=1), initial_env.splitlines()))
