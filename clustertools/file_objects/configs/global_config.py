@@ -63,12 +63,6 @@ class GlobalConfig(BaseConfig):
         project_parser['monitoring'] = self._configparser['project_defaults.monitoring']
         if project_parser.get('general', 'job_basename') == '<DEFAULT>':
             project_parser.set('general', 'job_basename', project_name)
-
-        # use_global_environ = project_parser.getboolean('runtime_environment',
-        #                                                'use_global_environ')
-        # if use_global_environ:
-
-
         project_config_local_path = CLUSTERTOOLS_CONFIG_DIR.joinpath(project_name,
                                                                      'project_config.ini')
         with project_config_local_path.open('w') as f:

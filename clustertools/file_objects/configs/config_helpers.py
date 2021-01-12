@@ -434,6 +434,5 @@ def init_project_job_monitor(inst: ProjectConfig, pref: bool) -> bool:
 
 
 PROJECT_CONFIG_UPDATE_HOOKS = {
-    'use_global_environ': update_config_from_global,
     'auto_monitor_jobs': init_project_job_monitor
 }

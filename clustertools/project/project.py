@@ -209,16 +209,6 @@ class Project:
     # object, and directly to the config file are reflected in all three
     # places
     @property
-    def use_global_environ(self) -> bool:
-        return self.config.runtime_environment.use_global_environ
-
-    @use_global_environ.setter
-    def use_global_environ(self, use: bool) -> None:
-        # updating with values from global environ handled in project
-        # config update hooks
-        self.config.runtime_environment.use_global_environ = use
-
-    @property
     def environ(self) -> MonitoredEnviron:
         return self.config.runtime_environment.environ
 
