@@ -81,31 +81,6 @@ class Project:
         self._cluster = cluster
         # initialize config & update fields
         self._config = ProjectConfig(self)
-        # config_field_updates = {
-        #     'job_basename': job_basename,
-        #     'job_executable': job_executable,
-        #     'modules': modules,
-        #     'env_activate_cmd': env_activate_cmd,
-        #     'env_deactivate_cmd': env_deactivate_cmd,
-        #     'use_global_environ': use_global_environ,
-        #     'directive_prefix': directive_prefix,
-        #     'queue': queue,
-        #     'n_nodes': n_nodes,
-        #     'ppn': ppn,
-        #     'wall_time': wall_time,
-        #     'email_list': email,
-        #     'all_submitted': notify_all_submitted,
-        #     'all_finished': notify_all_finished,
-        #     'job_started': notify_job_started,
-        #     'job_finished': notify_job_finished,
-        #     'job_aborted': notify_job_aborted,
-        #     'job_failed': notify_job_failed,
-        #     'collector_finished': notify_collector_finished,
-        #     'auto_monitor_jobs': auto_monitor_jobs,
-        #     'auto_resubmit_aborted': auto_resubmit_aborted,
-        #     'max_resubmit_attempts': max_resubmit_attempts,
-        #     'auto_submit_collector': auto_submit_collector
-        # }
         if any(config_kwargs):
             self.config.update(config_kwargs)
         # initialize remote directory structure for project
@@ -170,8 +145,15 @@ class Project:
         # TODO: write this. Don't allow rename if any jobs in progress.
         #  Otherwise, change project dirname and all other info that
         #  reflects project name
+        # TODO: this should also update the relevant files/paths both
+        #  locally and remotely to reflect the new name
         ...
+        if self.config.general.job_basename == self.name:
+            # update job basename to new project name if not explicitly
+            # set to something else
+            self.config.general.job_basename = new_name
         self._name = new_name
+
 
     ####################################################################
     #                         PATH PROPERTIES                          #
@@ -397,14 +379,14 @@ class Project:
                 self.parametrize_jobs(self._raw_job_params, as_matrix=as_matrix)
 
     ####################################################################
-    #                      CONFIG "INFER" HELPERS                      #
+    #                     CONFIG "<INFER>" HELPERS                     #
     ####################################################################
     # methods that handle filling values for project config fields that
     # default to "INFER", so their values can be determined based on
     # other fields or properties of the Project object
-    def _infer_job_basename(self) -> str:
-        basename = self.config.general.job_basename
-        return self.name if basename == 'INFER' else basename
+    # def _infer_job_basename(self) -> str:
+    #     basename = self.config.general.job_basename
+    #     return self.name if basename == '<INFER>' else basename
 
     def _infer_job_executable(self) -> str:
         # TODO: add more options to Project._inferred_executables
@@ -412,18 +394,18 @@ class Project:
         if suffix == '.sh':
             return self._cluster.executable
         else:
-            return Project._inferred_executables.get(suffix, 'INFER')
-
-    def _infer_directive_prefix(self) -> str:
-        prefix = self.config.pbs_params.directive_prefix
-        if prefix == 'INFER':
-            prefix = self.config.runtime_environment.environ.get('PBS_DPREFIX',
-                                                                 'PBS')
-        return prefix
+            return Project._inferred_executables.get(suffix, '<INFER>')
+    #
+    # def _infer_directive_prefix(self) -> str:
+    #     prefix = self.config.pbs_params.directive_prefix
+    #     if prefix == 'INFER':
+    #         prefix = self.config.runtime_environment.environ.get('PBS_DPREFIX',
+    #                                                              'PBS')
+    #     return prefix
 
     def _infer_queue(self) -> Literal['default', 'largeq']:
         q = self.config.pbs_params.queue
-        if q == 'INFER':
+        if q == '<INFER>':
             # Dartmouth Discovery cluster policy: batches of >600 jobs
             # should be submitted to largeq
             # PyCharm bug: Literals aren't detected in ternaries
@@ -531,7 +513,7 @@ class Project:
                 "provide both a command to activate/enter the environment and "
                 "a command to deactivate/exit it afterward"
             )
-        elif self.config.general.job_executable == 'INFER':
+        elif self.config.general.job_executable == '<INFER>':
             raise ProjectConfigurationError(
                 "Unable to infer a command for running a job script ending in "
                 f"'{self.job_script.local_path.suffix}'. Please set "

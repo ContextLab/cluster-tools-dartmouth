@@ -145,8 +145,8 @@ def str_to_modules(inst: _Config, modules_str: str) -> MonitoredList:
 @bindable
 def str_to_email_list(inst: _Config, email_str: str) -> MonitoredList:
     email_list = [m.strip() for m in email_str.strip().split(',')]
-    validate_item_hook = inst._object_validate_hooks['email_list']
-    post_update_hook = inst._object_post_update_hooks['email_list']
+    validate_item_hook = inst._object_validate_hooks['email']
+    post_update_hook = inst._object_post_update_hooks['email']
     return MonitoredList(email_list,
                          validate_item_hook=validate_item_hook,
                          post_update_hook=post_update_hook)
@@ -155,7 +155,7 @@ def str_to_email_list(inst: _Config, email_str: str) -> MonitoredList:
 to_type_funcs = {
     'environ': str_to_environ,
     'modules': str_to_modules,
-    'email_list': str_to_email_list
+    'email': str_to_email_list
 }
 
 @bindable
@@ -196,7 +196,7 @@ def validate_email(email: str) -> None:
         )
 
 
-BASE_OBJECT_VALIDATE_HOOKS = {'email_list': validate_email}
+BASE_OBJECT_VALIDATE_HOOKS = {'email': validate_email}
 
 
                          # post_update_hooks #
@@ -235,31 +235,31 @@ def modules_post_update_project(inst: ProjectConfig) -> None:
 
 @bindable
 def email_post_update_global(inst: GlobalConfig) -> None:
-    emails_str = ','.join(inst._config.project_defaults.notifications.email_list)
+    emails_str = ','.join(inst._config.project_defaults.notifications.email)
     inst._configparser.set('project_defaults.notifications',
-                           'email_list',
+                           'email',
                            emails_str)
     inst.write_config_file()
 
 
 @bindable
 def email_post_update_project(inst: ProjectConfig) -> None:
-    emails_str = ','.join(inst._config.notifications.email_list)
-    inst._configparser.set('notifications', 'email_list', emails_str)
+    emails_str = ','.join(inst._config.notifications.email)
+    inst._configparser.set('notifications', 'email', emails_str)
     inst.write_config_file()
 
 
 GLOBAL_OBJECT_POST_UPDATE_HOOKS = {
     'environ': environ_post_update_global,
     'modules': modules_post_update_global,
-    'email_list': email_post_update_global
+    'email': email_post_update_global
 }
 
 
 PROJECT_OBJECT_POST_UPDATE_HOOKS = {
     'environ': environ_post_update_project,
     'modules': modules_post_update_project,
-    'email_list': email_post_update_project
+    'email': email_post_update_project
 }
 
 
@@ -332,7 +332,7 @@ def monitor_environ(inst: _Config, environ: Dict[str, str]) -> MonitoredEnviron:
 
 
 @bindable
-def monitor_email_list(
+def monitor_email(
         inst: _Config,
         new_emails: OneOrMore[str]
 ) -> MonitoredList[EmailAddress]:
@@ -356,7 +356,7 @@ BASE_CONFIG_UPDATE_HOOKS = {
     'wall_time': validate_walltime_str,
     'modules': monitor_modules,
     'environ': monitor_environ,
-    'email_list': monitor_email_list
+    'email': monitor_email
 }
 
 

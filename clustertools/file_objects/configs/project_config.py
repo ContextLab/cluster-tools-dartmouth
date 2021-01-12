@@ -28,7 +28,7 @@ class ProjectConfig(BaseConfig):
         remote_home = PurePosixPath(cluster.getenv('HOME'))
         remote_path = remote_home.joinpath('.clustertools', project.name,
                                            'project_config.ini')
-        # needs to happen before _init_local is called
+        # needs to happen before BaseConfig._init_local is called
         self._config_update_hooks = ParrotDict()
         self._object_post_update_hooks = ParrotDict()
         self._object_validate_hooks = ParrotDict()
@@ -36,10 +36,12 @@ class ProjectConfig(BaseConfig):
             self._config_update_hooks[field] = hook(self)
         for field, hook in PROJECT_OBJECT_POST_UPDATE_HOOKS.items():
             self._object_post_update_hooks[field] = hook(self)
+        # also needs to happen in case self._init_local calls self._parse_config
+        self._project = project
         super().__init__(cluster=cluster,
                          local_path=local_path,
                          remote_path=remote_path)
-        self._project = project
+
 
     def _init_local(self):
         if not self.local_path.is_file():
@@ -48,13 +50,18 @@ class ProjectConfig(BaseConfig):
                 # that ~/.clustertools exists already
                 self.local_path.parent.mkdir(parents=False, exist_ok=False)
             self._configparser = self._cluster.config.create_project_config(self._project.name)
-            self._config = self._parse_config()
+            self._config = super()._parse_config()
         else:
             # runs self._load_configparser() and self._parse_config() to
             # set self._configparser and self._config
             super()._init_local()
 
     def _parse_config(self) -> TrackedAttrConfig:
+        # - assigns the default job_basename (project name) if not
+        #   otherwise set
+        # - adds global config environment variables if
+        #   use_global_environ is true
+        #
         # priority order for project environment variables
         # (highest to lowest):
         #  - vars set after creating Project object but before
@@ -65,6 +72,10 @@ class ProjectConfig(BaseConfig):
         #  - vars set on Cluster object after creation
         #    (if use_global_environ)
         #  - vars passed to Cluster constructor (if use_global_environ)
+        curr_job_basename = self._configparser.getboolean('general',
+                                                          'job_basename')
+        if curr_job_basename == '<DEFAULT>':
+
         use_global_environ = self._configparser.getboolean('runtime_environment',
                                                             'use_global_environ')
         if use_global_environ:

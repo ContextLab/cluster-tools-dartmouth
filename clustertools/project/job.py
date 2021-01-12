@@ -21,11 +21,12 @@ class Job:
         #${directive_prefix} -q ${queue}
         #${directive_prefix} -l nodes=${n_nodes}:ppn=${ppn}
         #${directive_prefix} -l walltime=${wall_time}
-        #${directive_prefix} -m ${mail_options}
-        ${email_directive}
         ${dependency_directive}
         ${hold_directive}
         ${environ_export_directive}
+        ${email_directive}
+        ${mail_options_directive}
+        
 
         echo "${job_type} running on:"
         echo "host: $PBS_O_HOST"
@@ -191,8 +192,8 @@ class Job:
 
 
         # TODO: make sure this checks for proper values in final field format
-        email_addrs = self._project.config.notifications.email_list
-        if field_vals['mail_options'] == 'n' or self._project.config.notifications.email_list == 'INFER':
+        email_addrs = self._project.config.notifications.email
+        if field_vals['mail_options'] == 'n' or len(self._project.config.notifications.email) == 0:
             # emails (if any) will be sent to the user's default email address
             field_vals['email_directive'] = ''
         else:

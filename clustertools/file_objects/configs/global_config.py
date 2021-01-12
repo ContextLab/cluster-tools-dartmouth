@@ -51,7 +51,8 @@ class GlobalConfig(BaseConfig):
             self._config.general.project_dir = self._cluster.getenv('HOME', default='$HOME')
 
     def create_project_config(self, project_name: str) -> ConfigParser:
-        # ADD DOCSTRING
+        # ADD DOCSTRING - creates the project_config.ini file and ConfigParser
+        #  object for a newly created project
         # TODO: given how the project config is created, the template
         #  file probably doesn't even need to exist
         project_parser = ConfigParser(strict=True)
@@ -60,8 +61,14 @@ class GlobalConfig(BaseConfig):
         project_parser['pbs_params'] = self._configparser['project_defaults.pbs_params']
         project_parser['notifications'] = self._configparser['project_defaults.notifications']
         project_parser['monitoring'] = self._configparser['project_defaults.monitoring']
-        if project_parser.get('general', 'job_basename') == 'INFER':
+        if project_parser.get('general', 'job_basename') == '<DEFAULT>':
             project_parser.set('general', 'job_basename', project_name)
+
+        # use_global_environ = project_parser.getboolean('runtime_environment',
+        #                                                'use_global_environ')
+        # if use_global_environ:
+
+
         project_config_local_path = CLUSTERTOOLS_CONFIG_DIR.joinpath(project_name,
                                                                      'project_config.ini')
         with project_config_local_path.open('w') as f:
